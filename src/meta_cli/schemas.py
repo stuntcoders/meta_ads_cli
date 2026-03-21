@@ -65,6 +65,8 @@ class AdCreateConfig(BaseModel):
     def validate_payload_requirements(self) -> "AdCreateConfig":
         if self.existing_creative_id:
             return self
+        if self.image_hashes and self.video_id:
+            raise ValueError("Provide either image_hashes or video_id, not both")
         if not self.page_id:
             raise ValueError("page_id is required unless existing_creative_id is provided")
         if not self.bodies:

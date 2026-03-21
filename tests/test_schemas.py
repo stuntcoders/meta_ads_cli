@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from meta_cli.schemas import AdCreateConfig, AdSetCreateConfig
+from meta_cli.schemas import AdCreateConfig, AdSetCreateConfig, load_yaml_model
 
 
 def test_adset_requires_budget():
@@ -48,3 +48,32 @@ def test_adcreate_build_ad_payload_uses_creative_id():
     payload = cfg.build_ad_payload("123")
     assert payload["creative"]["creative_id"] == "123"
     assert payload["status"] == "PAUSED"
+
+
+def test_adcreate_rejects_image_and_video_combo():
+    with pytest.raises(ValueError):
+        AdCreateConfig(
+            adset_id="adset_1",
+            name="Ad",
+            page_id="page_1",
+            destination_url="https://example.com",
+            bodies=["Body"],
+            image_hashes=["hash1"],
+            video_id="video1",
+        )
+
+
+def test_load_yaml_model(tmp_path):
+    path = tmp_path / "adset.yaml"
+    path.write_text(
+        """
+campaign_id: "123"
+name: "Test"
+daily_budget: 1000
+targeting:
+  geo_locations:
+    countries: ["US"]
+""".strip()
+    )
+    cfg = load_yaml_model(str(path), AdSetCreateConfig)
+    assert cfg.campaign_id == "123"
