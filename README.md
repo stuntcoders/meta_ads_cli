@@ -68,7 +68,23 @@ export META_AD_ACCOUNT_ID="act_1234567890"
 ```bash
 meta-cli auth test
 meta-cli auth test --json
+meta-cli auth test --config ./auth.yaml
 ```
+
+Most commands also accept `--auth-config <path>` when you prefer file-based credentials over environment variables.
+
+---
+
+## Meta Object Hierarchy
+
+The CLI follows Meta's object hierarchy:
+
+`Campaign -> Ad Set -> Ad Creative -> Ad`
+
+- Campaigns are the top-level budget/objective containers.
+- Ad sets define budget schedule, optimization, and targeting.
+- Creatives define the text/media payload.
+- Ads bind creatives to ad sets and serve delivery status.
 
 ---
 
