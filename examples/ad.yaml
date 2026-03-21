@@ -1,0 +1,18 @@
+adset_id: "120000000000002"
+name: "Spring Promo - Variant Set 1"
+page_id: "120000000000003"
+instagram_actor_id: "17840000000000000"
+destination_url: "https://example.com/spring-offer"
+headlines:
+  - "Spring sale is live"
+  - "Save on your first order"
+bodies:
+  - "Shop now and get free shipping over $50."
+  - "Limited-time offer. New arrivals just dropped."
+descriptions:
+  - "Offer ends soon"
+image_hashes:
+  - "a1b2c3d4e5f6"
+  - "f6e5d4c3b2a1"
+call_to_action_type: "SHOP_NOW"
+status: "PAUSED"

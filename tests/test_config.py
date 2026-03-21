@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from meta_cli.config import load_settings

@@ -1,0 +1,16 @@
+campaign_id: "120000000000001"
+name: "US Traffic - Broad - Mobile"
+daily_budget: 5000
+billing_event: "IMPRESSIONS"
+optimization_goal: "LINK_CLICKS"
+bid_strategy: "LOWEST_COST_WITHOUT_CAP"
+start_time: "2026-03-22T00:00:00-0700"
+status: "PAUSED"
+targeting:
+  geo_locations:
+    countries: ["US"]
+  age_min: 21
+  age_max: 55
+  publisher_platforms: ["facebook", "instagram"]
+  facebook_positions: ["feed", "marketplace"]
+  instagram_positions: ["stream"]
