@@ -41,7 +41,11 @@ def ads_insights(
     since: Optional[str] = typer.Option(None, "--since", help="Start date YYYY-MM-DD"),
     until: Optional[str] = typer.Option(None, "--until", help="End date YYYY-MM-DD"),
     auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
-    limit: int = typer.Option(200, min=1, max=2000, help="Maximum records"),
+    limit: int = typer.Option(200, min=1, max=2000, help="Maximum rows per request page"),
+    after: Optional[str] = typer.Option(None, "--after", help="Cursor to fetch next page from"),
+    before: Optional[str] = typer.Option(None, "--before", help="Cursor to fetch previous page from"),
+    paginate: bool = typer.Option(True, "--paginate/--no-paginate", help="Auto-follow pagination"),
+    max_pages: Optional[int] = typer.Option(None, "--max-pages", min=1, help="Maximum pages to fetch"),
     json_output: bool = typer.Option(False, "--json", help="Output JSON"),
 ) -> None:
     try:
@@ -60,6 +64,10 @@ def ads_insights(
             until=until,
             adset_id=adset_id,
             limit=limit,
+            after=after,
+            before=before,
+            auto_paginate=paginate,
+            max_pages=max_pages,
         )
         rows = [_insight_row(item) for item in insights]
         print_table(

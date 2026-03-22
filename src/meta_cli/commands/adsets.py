@@ -30,12 +30,24 @@ ADSET_FIELDS = [
 def list_adsets(
     campaign_id: str = typer.Option(..., "--campaign-id", help="Campaign ID"),
     auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
-    limit: int = typer.Option(100, min=1, max=1000, help="Maximum ad sets to return"),
+    limit: int = typer.Option(100, min=1, max=1000, help="Maximum rows per request page"),
+    after: Optional[str] = typer.Option(None, "--after", help="Cursor to fetch next page from"),
+    before: Optional[str] = typer.Option(None, "--before", help="Cursor to fetch previous page from"),
+    paginate: bool = typer.Option(True, "--paginate/--no-paginate", help="Auto-follow pagination"),
+    max_pages: Optional[int] = typer.Option(None, "--max-pages", min=1, help="Maximum pages to fetch"),
     json_output: bool = typer.Option(False, "--json", help="Output JSON"),
 ) -> None:
     try:
         client = build_client(auth_config)
-        adsets = client.list_adsets(campaign_id=campaign_id, fields=ADSET_FIELDS, limit=limit)
+        adsets = client.list_adsets(
+            campaign_id=campaign_id,
+            fields=ADSET_FIELDS,
+            limit=limit,
+            after=after,
+            before=before,
+            auto_paginate=paginate,
+            max_pages=max_pages,
+        )
         rows = [
             [
                 item.get("id"),

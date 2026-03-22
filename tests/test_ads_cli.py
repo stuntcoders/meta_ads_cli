@@ -11,11 +11,27 @@ class FakeAdsClient:
     def __init__(self):
         self.creative_payload = None
         self.ad_payload = None
+        self.last_list_kwargs = {}
 
-    def list_all_ads(self, fields, limit):
+    def list_all_ads(self, fields, limit, after=None, before=None, auto_paginate=True, max_pages=None):
+        self.last_list_kwargs = {
+            "after": after,
+            "before": before,
+            "auto_paginate": auto_paginate,
+            "max_pages": max_pages,
+            "limit": limit,
+        }
         return [{"id": "1", "name": "Ad", "status": "PAUSED", "effective_status": "PAUSED"}]
 
-    def list_ads(self, adset_id, fields, limit):
+    def list_ads(self, adset_id, fields, limit, after=None, before=None, auto_paginate=True, max_pages=None):
+        self.last_list_kwargs = {
+            "adset_id": adset_id,
+            "after": after,
+            "before": before,
+            "auto_paginate": auto_paginate,
+            "max_pages": max_pages,
+            "limit": limit,
+        }
         return [{"id": "2", "name": "Ad2", "status": "ACTIVE", "adset_id": adset_id}]
 
     def create_creative(self, payload):
@@ -41,6 +57,19 @@ def test_ads_list_all_json(monkeypatch):
     result = runner.invoke(app, ["ads", "list", "--all", "--json"])
     assert result.exit_code == 0
     assert '"id": "1"' in result.stdout
+
+
+def test_ads_list_passes_pagination_flags(monkeypatch):
+    fake = FakeAdsClient()
+    monkeypatch.setattr("meta_cli.commands.ads.build_client", lambda *_: fake)
+    result = runner.invoke(
+        app,
+        ["ads", "list", "--all", "--after", "c2", "--max-pages", "2", "--no-paginate", "--json"],
+    )
+    assert result.exit_code == 0
+    assert fake.last_list_kwargs["after"] == "c2"
+    assert fake.last_list_kwargs["auto_paginate"] is False
+    assert fake.last_list_kwargs["max_pages"] == 2
 
 
 def test_ads_create_dry_run_multi_text(monkeypatch):

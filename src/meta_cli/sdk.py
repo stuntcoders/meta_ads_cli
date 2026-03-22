@@ -48,6 +48,48 @@ class MetaSDKClient:
             return obj.export_all_data()
         return dict(obj)
 
+    @staticmethod
+    def _with_pagination_params(base_params: Dict[str, Any], after: str | None, before: str | None) -> Dict[str, Any]:
+        params = dict(base_params)
+        if after and before:
+            raise APIError("Use either --after or --before, not both")
+        if after:
+            params["after"] = after
+        if before:
+            params["before"] = before
+        return params
+
+    def _collect_cursor(
+        self,
+        cursor: Any,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        if max_pages is not None and max_pages < 1:
+            raise APIError("max_pages must be >= 1")
+
+        # Facebook SDK Cursor supports controlled paging via load_next_page.
+        if hasattr(cursor, "load_next_page"):
+            rows: List[Dict[str, Any]] = []
+            pages_read = 0
+            while cursor.load_next_page():
+                pages_read += 1
+                current_items = [self.to_dict(cursor[i]) for i in range(len(cursor))]
+                rows.extend(current_items)
+
+                # Clear loaded queue so next load_next_page fetches next page.
+                if hasattr(cursor, "_queue"):
+                    cursor._queue = []
+
+                if not auto_paginate:
+                    break
+                if max_pages is not None and pages_read >= max_pages:
+                    break
+            return rows
+
+        # Fallback for mocked iterables in tests.
+        return [self.to_dict(item) for item in cursor]
+
     def get_ad_account(self):
         _, AdAccount = self._core_imports()
         return AdAccount(self.credentials.ad_account_id)
@@ -78,39 +120,77 @@ class MetaSDKClient:
             "account_status": data.get("account_status"),
         }
 
-    def list_campaigns(self, fields: List[str], limit: int = 50) -> List[Dict[str, Any]]:
+    def list_campaigns(
+        self,
+        fields: List[str],
+        limit: int = 50,
+        after: str | None = None,
+        before: str | None = None,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+    ) -> List[Dict[str, Any]]:
         self.initialize()
         account = self.get_ad_account()
+        params = self._with_pagination_params({"limit": limit}, after, before)
         try:
-            cursor = account.get_campaigns(fields=fields, params={"limit": limit})
-            return [self.to_dict(item) for item in cursor]
+            cursor = account.get_campaigns(fields=fields, params=params)
+            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list campaigns: {exc}") from exc
 
-    def list_adsets(self, campaign_id: str, fields: List[str], limit: int = 100) -> List[Dict[str, Any]]:
+    def list_adsets(
+        self,
+        campaign_id: str,
+        fields: List[str],
+        limit: int = 100,
+        after: str | None = None,
+        before: str | None = None,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+    ) -> List[Dict[str, Any]]:
         self.initialize()
         campaign = self.get_campaign(campaign_id)
+        params = self._with_pagination_params({"limit": limit}, after, before)
         try:
-            cursor = campaign.get_ad_sets(fields=fields, params={"limit": limit})
-            return [self.to_dict(item) for item in cursor]
+            cursor = campaign.get_ad_sets(fields=fields, params=params)
+            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list ad sets for campaign {campaign_id}: {exc}") from exc
 
-    def list_ads(self, adset_id: str, fields: List[str], limit: int = 100) -> List[Dict[str, Any]]:
+    def list_ads(
+        self,
+        adset_id: str,
+        fields: List[str],
+        limit: int = 100,
+        after: str | None = None,
+        before: str | None = None,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+    ) -> List[Dict[str, Any]]:
         self.initialize()
         adset = self.get_adset(adset_id)
+        params = self._with_pagination_params({"limit": limit}, after, before)
         try:
-            cursor = adset.get_ads(fields=fields, params={"limit": limit})
-            return [self.to_dict(item) for item in cursor]
+            cursor = adset.get_ads(fields=fields, params=params)
+            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list ads for ad set {adset_id}: {exc}") from exc
 
-    def list_all_ads(self, fields: List[str], limit: int = 200) -> List[Dict[str, Any]]:
+    def list_all_ads(
+        self,
+        fields: List[str],
+        limit: int = 200,
+        after: str | None = None,
+        before: str | None = None,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+    ) -> List[Dict[str, Any]]:
         self.initialize()
         account = self.get_ad_account()
+        params = self._with_pagination_params({"limit": limit}, after, before)
         try:
-            cursor = account.get_ads(fields=fields, params={"limit": limit})
-            return [self.to_dict(item) for item in cursor]
+            cursor = account.get_ads(fields=fields, params=params)
+            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list all ads: {exc}") from exc
 
@@ -122,9 +202,13 @@ class MetaSDKClient:
         until: str | None = None,
         adset_id: str | None = None,
         limit: int = 200,
+        after: str | None = None,
+        before: str | None = None,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
     ) -> List[Dict[str, Any]]:
         self.initialize()
-        params: Dict[str, Any] = {"level": "ad", "limit": limit}
+        params: Dict[str, Any] = self._with_pagination_params({"level": "ad", "limit": limit}, after, before)
         if date_preset:
             params["date_preset"] = date_preset
         elif since and until:
@@ -139,7 +223,7 @@ class MetaSDKClient:
             else:
                 account = self.get_ad_account()
                 cursor = account.get_insights(fields=fields, params=params)
-            return [self.to_dict(item) for item in cursor]
+            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to fetch ad insights: {exc}") from exc
 
