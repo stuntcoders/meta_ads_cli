@@ -1,0 +1,134 @@
+name: Homebrew Formula PR
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to package (e.g. v0.1.0). Defaults to current ref name."
+        required: false
+      tap_repo:
+        description: "Override tap repository (org/homebrew-foo). Defaults to repository variable HOMEBREW_TAP_REPO."
+        required: false
+
+jobs:
+  open-tap-pr:
+    runs-on: ubuntu-latest
+    env:
+      DEFAULT_FORMULA_NAME: meta-ads-cli
+      DEFAULT_FORMULA_PATH: Formula/meta-ads-cli.rb
+      DEFAULT_BASE_BRANCH: main
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve workflow configuration
+        id: cfg
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_TAP_REPO: ${{ github.event.inputs.tap_repo }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO_VAR_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
+          REPO_VAR_FORMULA_NAME: ${{ vars.HOMEBREW_FORMULA_NAME }}
+          REPO_VAR_FORMULA_PATH: ${{ vars.HOMEBREW_FORMULA_PATH }}
+          REPO_VAR_BASE_BRANCH: ${{ vars.HOMEBREW_TAP_BASE_BRANCH }}
+        run: |
+          set -euo pipefail
+
+          TAG="${INPUT_TAG:-}"
+          if [ -z "$TAG" ]; then
+            TAG="${RELEASE_TAG:-}"
+          fi
+          if [ -z "$TAG" ]; then
+            TAG="${REF_NAME:-}"
+          fi
+          if [ -z "$TAG" ]; then
+            echo "Unable to resolve release tag"
+            exit 1
+          fi
+
+          TAP_REPO="${INPUT_TAP_REPO:-}"
+          if [ -z "$TAP_REPO" ]; then
+            TAP_REPO="${REPO_VAR_TAP_REPO:-}"
+          fi
+          if [ -z "$TAP_REPO" ]; then
+            echo "HOMEBREW_TAP_REPO is not configured. Set repository variable HOMEBREW_TAP_REPO or pass tap_repo input."
+            exit 1
+          fi
+
+          FORMULA_NAME="${REPO_VAR_FORMULA_NAME:-$DEFAULT_FORMULA_NAME}"
+          FORMULA_PATH="${REPO_VAR_FORMULA_PATH:-$DEFAULT_FORMULA_PATH}"
+          BASE_BRANCH="${REPO_VAR_BASE_BRANCH:-$DEFAULT_BASE_BRANCH}"
+
+          SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          HOMEPAGE="https://github.com/${GITHUB_REPOSITORY}"
+
+          {
+            echo "tag=$TAG"
+            echo "tap_repo=$TAP_REPO"
+            echo "formula_name=$FORMULA_NAME"
+            echo "formula_path=$FORMULA_PATH"
+            echo "base_branch=$BASE_BRANCH"
+            echo "source_url=$SOURCE_URL"
+            echo "homepage=$HOMEPAGE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Compute source archive SHA256
+        id: sha
+        env:
+          SOURCE_URL: ${{ steps.cfg.outputs.source_url }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "$SOURCE_URL" -o source.tar.gz
+          SOURCE_SHA256="$(sha256sum source.tar.gz | awk '{print $1}')"
+          echo "source_sha256=$SOURCE_SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Homebrew tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.cfg.outputs.tap_repo }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+          ref: ${{ steps.cfg.outputs.base_branch }}
+
+      - name: Generate formula file
+        env:
+          FORMULA_NAME: ${{ steps.cfg.outputs.formula_name }}
+          FORMULA_PATH: ${{ steps.cfg.outputs.formula_path }}
+          HOMEPAGE: ${{ steps.cfg.outputs.homepage }}
+          SOURCE_URL: ${{ steps.cfg.outputs.source_url }}
+          SOURCE_SHA256: ${{ steps.sha.outputs.source_sha256 }}
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_brew_formula.py \
+            --formula-name "$FORMULA_NAME" \
+            --homepage "$HOMEPAGE" \
+            --source-url "$SOURCE_URL" \
+            --source-sha256 "$SOURCE_SHA256" \
+            --output "tap/$FORMULA_PATH"
+
+      - name: Create pull request in tap repository
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+          branch: automation/update-${{ steps.cfg.outputs.formula_name }}-${{ steps.cfg.outputs.tag }}
+          base: ${{ steps.cfg.outputs.base_branch }}
+          delete-branch: true
+          title: "chore(homebrew): update ${{ steps.cfg.outputs.formula_name }} for ${{ steps.cfg.outputs.tag }}"
+          commit-message: "chore(homebrew): update ${{ steps.cfg.outputs.formula_name }} for ${{ steps.cfg.outputs.tag }}"
+          body: |
+            Automated update from `${{ github.repository }}`.
+
+            - Tag: `${{ steps.cfg.outputs.tag }}`
+            - Source URL: `${{ steps.cfg.outputs.source_url }}`
+            - Source SHA256: `${{ steps.sha.outputs.source_sha256 }}`
+
+            Generated via `scripts/generate_brew_formula.py`.

@@ -232,6 +232,33 @@ brew update
 brew upgrade meta-ads-cli
 ```
 
+#### Optional automation: open tap PR automatically on each release
+
+This repository includes `.github/workflows/homebrew-formula-pr.yml`.
+
+When a GitHub Release is published (or via manual workflow dispatch), it will:
+
+1. Build source archive URL for the release tag
+2. Compute source SHA256
+3. Generate `Formula/meta-ads-cli.rb`
+4. Open a pull request in your tap repository
+
+Required setup in this source repository:
+
+- Repository **secret**: `HOMEBREW_TAP_TOKEN`
+  - Use a PAT or GitHub App token with write access to the tap repo
+  - Needs permissions to push branches and open PRs in tap repo
+- Repository **variable**: `HOMEBREW_TAP_REPO`
+  - Example: `your-org/homebrew-meta-ads-cli`
+
+Optional repository variables:
+
+- `HOMEBREW_FORMULA_NAME` (default: `meta-ads-cli`)
+- `HOMEBREW_FORMULA_PATH` (default: `Formula/meta-ads-cli.rb`)
+- `HOMEBREW_TAP_BASE_BRANCH` (default: `main`)
+
+You can also run the workflow manually and override `tag` and `tap_repo` inputs.
+
 ### Brew + pipx fallback (easiest operationally)
 
 If you prefer not to maintain a tap formula, this is the simplest macOS path:
@@ -452,6 +479,7 @@ Project layout:
 - `scripts/build_artifacts.sh` — build wheel/sdist for distribution
 - `scripts/generate_brew_formula.py` — generate Homebrew formula from pinned lockfile
 - `scripts/release_brew_formula.sh` — helper wrapper for release-time formula generation
+- `.github/workflows/homebrew-formula-pr.yml` — automated PR flow to Homebrew tap repo
 - `requirements*.in` / `requirements*.lock` — reproducible dependency inputs + lockfiles
 - `LICENSE` — project license (MIT)
 
