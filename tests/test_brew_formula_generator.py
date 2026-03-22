@@ -55,9 +55,21 @@ def test_render_formula_contains_resources():
         license_name="MIT",
         python_formula="python@3.12",
         resources=resources,
+        build_dependencies=['depends_on "rust" => :build'],
     )
 
     assert "class MetaAdsCli < Formula" in formula
     assert 'resource "requests" do' in formula
     assert 'resource "rich" do' in formula
     assert 'depends_on "python@3.12"' in formula
+    assert 'depends_on "rust" => :build' in formula
+
+
+def test_detect_build_dependencies_for_pydantic_core():
+    mod = _load_module()
+    reqs = [
+        mod.Requirement(name="pydantic-core", version="2.41.5"),
+        mod.Requirement(name="rich", version="14.3.3"),
+    ]
+    deps = mod.detect_build_dependencies(reqs)
+    assert 'depends_on "rust" => :build' in deps

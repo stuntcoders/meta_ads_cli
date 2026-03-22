@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Iterable
 from urllib.request import urlopen
 
+RUST_BUILD_PACKAGES = {
+    "pydantic-core",
+}
+
 
 @dataclass
 class Requirement:
@@ -20,6 +24,10 @@ class Resource:
     name: str
     url: str
     sha256: str
+
+
+def normalize_package_name(name: str) -> str:
+    return name.strip().lower().replace("_", "-")
 
 
 def parse_requirements_lock(path: Path) -> list[Requirement]:
@@ -63,6 +71,14 @@ def formula_class_name(formula_name: str) -> str:
     return "".join(part.capitalize() for part in formula_name.replace("_", "-").split("-"))
 
 
+def detect_build_dependencies(requirements: list[Requirement]) -> list[str]:
+    normalized = {normalize_package_name(req.name) for req in requirements}
+    build_dependencies: list[str] = []
+    if normalized.intersection(RUST_BUILD_PACKAGES):
+        build_dependencies.append('depends_on "rust" => :build')
+    return build_dependencies
+
+
 def render_formula(
     formula_name: str,
     description: str,
@@ -72,8 +88,14 @@ def render_formula(
     license_name: str,
     python_formula: str,
     resources: Iterable[Resource],
+    build_dependencies: Iterable[str] | None = None,
 ) -> str:
     class_name = formula_class_name(formula_name)
+    dependency_lines = [f'  depends_on "{python_formula}"']
+    if build_dependencies:
+        dependency_lines.extend([f"  {line}" if not line.startswith("  ") else line for line in build_dependencies])
+    dependency_block = "\n".join(dependency_lines)
+
     resource_blocks = "\n\n".join(
         [
             "\n".join(
@@ -97,7 +119,7 @@ def render_formula(
   sha256 "{source_sha256}"
   license "{license_name}"
 
-  depends_on "{python_formula}"
+{dependency_block}
 
 {resource_blocks}
 
@@ -124,6 +146,7 @@ def build_formula(
 ) -> str:
     requirements = parse_requirements_lock(requirements_lock)
     resources = [fetch_pypi_resource(req) for req in requirements]
+    build_dependencies = detect_build_dependencies(requirements)
     return render_formula(
         formula_name=formula_name,
         description=description,
@@ -133,6 +156,7 @@ def build_formula(
         license_name=license_name,
         python_formula=python_formula,
         resources=resources,
+        build_dependencies=build_dependencies,
     )
 
 

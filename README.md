@@ -189,6 +189,7 @@ Ensure:
 
 - tap repo is added: `brew tap stuntcoders/meta-ads-cli`
 - formula exists in tap repo at `Formula/meta-ads-cli.rb`
+- your tap formula is up to date (newer generated formulas include `rust` as a build dependency for `pydantic-core`)
 
 ---
 
