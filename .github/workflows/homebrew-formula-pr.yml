@@ -18,7 +18,6 @@ jobs:
     env:
       DEFAULT_FORMULA_NAME: meta-ads-cli
       DEFAULT_FORMULA_PATH: Formula/meta-ads-cli.rb
-      DEFAULT_BASE_BRANCH: main
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout source repository
@@ -67,7 +66,7 @@ jobs:
 
           FORMULA_NAME="${REPO_VAR_FORMULA_NAME:-$DEFAULT_FORMULA_NAME}"
           FORMULA_PATH="${REPO_VAR_FORMULA_PATH:-$DEFAULT_FORMULA_PATH}"
-          BASE_BRANCH="${REPO_VAR_BASE_BRANCH:-$DEFAULT_BASE_BRANCH}"
+          BASE_BRANCH="${REPO_VAR_BASE_BRANCH:-}"
 
           SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
           HOMEPAGE="https://github.com/${GITHUB_REPOSITORY}"
@@ -91,9 +90,11 @@ jobs:
           echo "Source URL: ${{ steps.cfg.outputs.source_url }}"
 
       - name: Validate tap repository access
+        id: tap
         env:
           TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           TAP_REPO: ${{ steps.cfg.outputs.tap_repo }}
+          CFG_BASE_BRANCH: ${{ steps.cfg.outputs.base_branch }}
         run: |
           set -euo pipefail
           if [ -z "${TOKEN:-}" ]; then
@@ -115,17 +116,29 @@ jobs:
 
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           payload = json.loads(Path('tap_repo.json').read_text())
           name = payload.get('full_name')
           permissions = payload.get('permissions') or {}
+          default_branch = payload.get('default_branch') or 'main'
+          configured_branch = (os.getenv('CFG_BASE_BRANCH') or '').strip()
+          resolved_branch = configured_branch or default_branch
+
           print(f"Verified tap repository access: {name}")
+          print(f"Tap default branch: {default_branch}")
+          print(f"Resolved base branch for PR: {resolved_branch}")
+
           if permissions and not permissions.get('push', False):
               raise SystemExit(
                   "Token can read tap repo but has no push permission. "
                   "Grant contents write access for PR branch creation."
               )
+
+          output_path = os.environ['GITHUB_OUTPUT']
+          with open(output_path, 'a', encoding='utf-8') as handle:
+              handle.write(f"base_branch={resolved_branch}\n")
           PY
 
       - name: Compute source archive SHA256
@@ -151,7 +164,7 @@ jobs:
           repository: ${{ steps.cfg.outputs.tap_repo }}
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
-          ref: ${{ steps.cfg.outputs.base_branch }}
+          ref: ${{ steps.tap.outputs.base_branch }}
 
       - name: Generate formula file
         env:
@@ -175,7 +188,7 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
           branch: automation/update-${{ steps.cfg.outputs.formula_name }}-${{ steps.cfg.outputs.tag }}
-          base: ${{ steps.cfg.outputs.base_branch }}
+          base: ${{ steps.tap.outputs.base_branch }}
           delete-branch: true
           title: "chore(homebrew): update ${{ steps.cfg.outputs.formula_name }} for ${{ steps.cfg.outputs.tag }}"
           commit-message: "chore(homebrew): update ${{ steps.cfg.outputs.formula_name }} for ${{ steps.cfg.outputs.tag }}"

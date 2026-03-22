@@ -255,7 +255,7 @@ Optional repository variables:
 
 - `HOMEBREW_FORMULA_NAME` (default: `meta-ads-cli`)
 - `HOMEBREW_FORMULA_PATH` (default: `Formula/meta-ads-cli.rb`)
-- `HOMEBREW_TAP_BASE_BRANCH` (default: `main`)
+- `HOMEBREW_TAP_BASE_BRANCH` (optional override; if omitted, workflow uses tap repo default branch)
 
 You can also run the workflow manually and override `tag` and `tap_repo` inputs.
 
