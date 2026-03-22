@@ -1,0 +1,8 @@
+# Pinned runtime dependencies for reproducible installs.
+# Update with: python3 -m piptools compile --output-file requirements.lock requirements.in
+
+typer==0.23.2
+rich==14.3.3
+pydantic==2.12.5
+PyYAML==6.0.3
+facebook-business==25.0.0

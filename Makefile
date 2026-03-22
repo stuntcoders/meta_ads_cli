@@ -1,7 +1,14 @@
-.PHONY: install test lint run
+.PHONY: install install-lock lock test lint run
 
 install:
 	python3 -m pip install -e .[dev]
+
+install-lock:
+	python3 -m pip install -r requirements-dev.lock
+
+lock:
+	python3 -m piptools compile --output-file requirements.lock requirements.in
+	python3 -m piptools compile --output-file requirements-dev.lock requirements-dev.in
 
 test:
 	python3 -m pytest

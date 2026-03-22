@@ -1,0 +1,8 @@
+# Pinned developer dependencies for reproducible local tooling.
+# Update with: python3 -m piptools compile --output-file requirements-dev.lock requirements-dev.in
+
+-r requirements.lock
+pytest==8.4.2
+pytest-mock==3.15.1
+ruff==0.15.7
+pip-tools==7.5.2

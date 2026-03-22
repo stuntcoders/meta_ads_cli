@@ -38,6 +38,18 @@ For development:
 python3 -m pip install ".[dev]"
 ```
 
+For reproducible local environments (pinned dependencies):
+
+```bash
+python3 -m pip install -r requirements-dev.lock
+```
+
+You can refresh lock files with:
+
+```bash
+make lock
+```
+
 ---
 
 ## Configuration
@@ -208,6 +220,7 @@ Project layout:
 - `src/meta_cli/` — CLI app, SDK client, schemas, commands
 - `tests/` — mocked tests (no live Meta credentials required)
 - `examples/` — ad set/ad YAML examples
+- `requirements*.in` / `requirements*.lock` — reproducible dependency inputs + lockfiles
 
 ---
 
