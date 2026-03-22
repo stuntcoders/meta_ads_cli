@@ -119,6 +119,8 @@ For creating ads/creatives you may also need:
 
 ## Installation
 
+### Local install (current machine)
+
 ```bash
 python3 -m pip install .
 ```
@@ -140,6 +142,60 @@ You can refresh lock files with:
 ```bash
 make lock
 ```
+
+### Global install for your team (recommended: `pipx`)
+
+`pipx` installs the CLI globally while isolating dependencies per app.
+
+#### Option A: Install globally from your Git repository (best for internal teams)
+
+```bash
+pipx install "git+https://<your-git-host>/<org>/<repo>.git"
+```
+
+Pin to a tag/release:
+
+```bash
+pipx install "git+https://<your-git-host>/<org>/<repo>.git@v0.1.0"
+```
+
+Upgrade later:
+
+```bash
+pipx upgrade meta-ads-cli
+```
+
+#### Option B: Install globally from a built wheel
+
+Maintainer builds artifacts:
+
+```bash
+./scripts/build_artifacts.sh
+```
+
+Team installs wheel globally:
+
+```bash
+pipx install ./dist/meta_ads_cli-<version>-py3-none-any.whl
+```
+
+You can also host the wheel and install via URL:
+
+```bash
+pipx install "https://<artifact-host>/meta_ads_cli-<version>-py3-none-any.whl"
+```
+
+### Homebrew-friendly setup (macOS)
+
+If your team uses Brew, easiest path is Brew + pipx:
+
+```bash
+brew install python@3.12 pipx
+pipx ensurepath
+pipx install "git+https://<your-git-host>/<org>/<repo>.git@v0.1.0"
+```
+
+This gives a globally available `meta-cli` command with isolated dependencies.
 
 ---
 
@@ -338,6 +394,7 @@ Project layout:
 - `src/meta_cli/` — CLI app, SDK client, schemas, commands
 - `tests/` — mocked tests (no live Meta credentials required)
 - `examples/` — ad set/ad YAML examples
+- `scripts/build_artifacts.sh` — build wheel/sdist for distribution
 - `requirements*.in` / `requirements*.lock` — reproducible dependency inputs + lockfiles
 
 ---
