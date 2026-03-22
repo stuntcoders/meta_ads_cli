@@ -26,6 +26,97 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 
 ---
 
+## Meta setup (step-by-step, first-time users)
+
+If you are new to Meta APIs, complete this checklist before running the CLI.
+
+### 1) Confirm business + ad account access
+
+In **Meta Business Manager** (`business.facebook.com`):
+
+1. Open **Business Settings**.
+2. Confirm your business owns (or has partner access to) the target ad account.
+3. Confirm the operator/system user you will use has ad account permissions (at minimum to read; for creation/update, manage-level permissions are required).
+
+### 2) Create a Meta App and enable Marketing API
+
+In **Meta for Developers** (`developers.facebook.com`):
+
+1. Create an app (Business type recommended for production).
+2. Add the **Marketing API** product.
+3. Collect:
+   - **App ID** → `META_APP_ID`
+   - **App Secret** → `META_APP_SECRET`
+
+### 3) Generate an access token (recommended: System User token)
+
+Recommended production path:
+
+1. In **Business Settings** → **Users** → **System Users**, create/select a system user.
+2. Assign assets to that system user:
+   - Ad Account (with required level, usually Manage Campaigns for write actions)
+   - Facebook Page if page-backed ads are used
+3. Generate token for your app with required scopes.
+
+Minimum commonly needed scopes:
+
+- `ads_read` (listing/reporting)
+- `ads_management` (create/update/pause/resume)
+
+Depending on workflow/account setup, Meta may also require additional scopes such as page/business related permissions.
+
+Set generated token as:
+
+- `META_ACCESS_TOKEN`
+
+### 4) Get your Ad Account ID
+
+You can get this from Ads Manager URL or Business Settings.
+
+- Raw numeric ID is accepted (CLI normalizes to `act_<id>`)
+- Or pass it directly as `act_<id>`
+
+Set as:
+
+- `META_AD_ACCOUNT_ID`
+
+### 5) (Optional) Choose API version
+
+Set:
+
+- `META_API_VERSION` (defaults to `v20.0` if omitted)
+
+### 6) Export environment variables
+
+```bash
+export META_ACCESS_TOKEN="..."
+export META_APP_ID="..."
+export META_APP_SECRET="..."
+export META_AD_ACCOUNT_ID="act_1234567890"
+# optional
+export META_API_VERSION="v20.0"
+```
+
+### 7) Verify credentials before running any action
+
+```bash
+meta-cli auth test
+```
+
+If this fails, the rest of the CLI will fail too. Fix auth/access first.
+
+### 8) Additional IDs needed for ad creation workflows
+
+For creating ads/creatives you may also need:
+
+- `page_id` (Facebook Page ID)
+- `instagram_actor_id` (if using IG placement identity)
+- Uploaded media IDs/hashes:
+  - image upload returns image hash
+  - video upload returns video id
+
+---
+
 ## Installation
 
 ```bash
