@@ -535,6 +535,7 @@ Project layout:
 - `.github/workflows/homebrew-formula-pr.yml` — automated PR flow to Homebrew tap repo
 - `requirements*.in` / `requirements*.lock` — reproducible dependency inputs + lockfiles
 - `LICENSE` — project license (MIT)
+- `AGENTS.md` — repository instructions for coding agents/resurrected sessions
 
 ---
 
