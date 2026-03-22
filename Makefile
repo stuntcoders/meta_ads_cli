@@ -1,4 +1,4 @@
-.PHONY: install install-lock install-global-local lock build test lint run
+.PHONY: install install-lock install-global-local lock build brew-formula test lint run
 
 install:
 	python3 -m pip install -e .[dev]
@@ -12,12 +12,22 @@ install-global-local:
 	python3 -m pipx install --force .
 
 lock:
-	python3 -m piptools compile --output-file requirements.lock requirements.in
-	python3 -m piptools compile --output-file requirements-dev.lock requirements-dev.in
+	python3 -m piptools compile --strip-extras --output-file requirements.lock requirements.in
+	python3 -m piptools compile --strip-extras --output-file requirements-dev.lock requirements-dev.in
 
 build:
 	python3 -m pip install --user build
 	python3 -m build
+
+brew-formula:
+	@test -n "$(HOMEPAGE)" || (echo "HOMEPAGE is required" && exit 1)
+	@test -n "$(SOURCE_URL)" || (echo "SOURCE_URL is required" && exit 1)
+	@test -n "$(SOURCE_SHA256)" || (echo "SOURCE_SHA256 is required" && exit 1)
+	python3 scripts/generate_brew_formula.py \
+		--homepage "$(HOMEPAGE)" \
+		--source-url "$(SOURCE_URL)" \
+		--source-sha256 "$(SOURCE_SHA256)" \
+		--output "$(or $(OUTPUT),Formula/meta-ads-cli.rb)"
 
 test:
 	python3 -m pytest

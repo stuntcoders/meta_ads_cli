@@ -146,6 +146,7 @@ make lock
 ### Global install for your team (recommended: `pipx`)
 
 `pipx` installs the CLI globally while isolating dependencies per app.
+This works across macOS, Linux, and Windows (with Python 3.12+ available).
 
 #### Option A: Install globally from your Git repository (best for internal teams)
 
@@ -185,17 +186,61 @@ You can also host the wheel and install via URL:
 pipx install "https://<artifact-host>/meta_ads_cli-<version>-py3-none-any.whl"
 ```
 
-### Homebrew-friendly setup (macOS)
+### Homebrew tap formula (direct `brew install`, macOS)
 
-If your team uses Brew, easiest path is Brew + pipx:
+If you want your team to install with native Homebrew commands, use a tap repository.
+
+#### Maintainer: one-time setup
+
+1. Create a separate tap repo named like: `homebrew-meta-ads-cli`
+2. Inside it, keep formulas under `Formula/`
+
+#### Maintainer: per release
+
+1. Publish a source release tarball URL for the tagged version (example: `v0.1.0`).
+2. Compute its SHA256:
+
+```bash
+curl -L "https://github.com/<org>/<repo>/archive/refs/tags/v0.1.0.tar.gz" -o /tmp/meta-ads-cli-v0.1.0.tar.gz
+shasum -a 256 /tmp/meta-ads-cli-v0.1.0.tar.gz
+```
+
+3. Generate the Homebrew formula using this repository's lockfile:
+
+```bash
+scripts/release_brew_formula.sh \
+  --homepage "https://github.com/<org>/<repo>" \
+  --source-url "https://github.com/<org>/<repo>/archive/refs/tags/v0.1.0.tar.gz" \
+  --source-sha256 "<sha256_from_previous_step>" \
+  --output "/path/to/homebrew-meta-ads-cli/Formula/meta-ads-cli.rb"
+```
+
+4. Commit and push the updated formula in the tap repo.
+
+#### Team usage
+
+```bash
+brew tap <org>/meta-ads-cli
+brew install meta-ads-cli
+meta-cli --help
+```
+
+Upgrade later:
+
+```bash
+brew update
+brew upgrade meta-ads-cli
+```
+
+### Brew + pipx fallback (easiest operationally)
+
+If you prefer not to maintain a tap formula, this is the simplest macOS path:
 
 ```bash
 brew install python@3.12 pipx
 pipx ensurepath
 pipx install "git+https://<your-git-host>/<org>/<repo>.git@v0.1.0"
 ```
-
-This gives a globally available `meta-cli` command with isolated dependencies.
 
 ---
 
@@ -381,6 +426,16 @@ make lint
 make test
 ```
 
+Generate formula with Make:
+
+```bash
+make brew-formula \
+  HOMEPAGE="https://github.com/<org>/<repo>" \
+  SOURCE_URL="https://github.com/<org>/<repo>/archive/refs/tags/v0.1.0.tar.gz" \
+  SOURCE_SHA256="<sha256>" \
+  OUTPUT="/path/to/homebrew-meta-ads-cli/Formula/meta-ads-cli.rb"
+```
+
 Optional live integration check:
 
 ```bash
@@ -395,7 +450,10 @@ Project layout:
 - `tests/` — mocked tests (no live Meta credentials required)
 - `examples/` — ad set/ad YAML examples
 - `scripts/build_artifacts.sh` — build wheel/sdist for distribution
+- `scripts/generate_brew_formula.py` — generate Homebrew formula from pinned lockfile
+- `scripts/release_brew_formula.sh` — helper wrapper for release-time formula generation
 - `requirements*.in` / `requirements*.lock` — reproducible dependency inputs + lockfiles
+- `LICENSE` — project license (MIT)
 
 ---
 

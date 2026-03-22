@@ -7,6 +7,7 @@ name = "meta-ads-cli"
 version = "0.1.0"
 description = "Production-grade CLI for Meta Ads management"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 authors = [{ name = "Meta Ads CLI" }]
 dependencies = [
