@@ -68,7 +68,7 @@ Install:
 
 ```bash
 brew tap stuntcoders/meta-ads-cli
-brew install meta-ads-cli
+brew install stuntcoders/meta-ads-cli/meta-ads-cli
 ```
 
 Verify:
@@ -188,6 +188,7 @@ Meta may reject combinations of objective, optimization goal, billing event, tar
 Ensure:
 
 - tap repo is added: `brew tap stuntcoders/meta-ads-cli`
+- install command uses full formula reference: `brew install stuntcoders/meta-ads-cli/meta-ads-cli`
 - formula exists in tap repo at `Formula/meta-ads-cli.rb`
 - your tap formula is up to date (newer generated formulas include `rust` as a build dependency for `pydantic-core`)
 
