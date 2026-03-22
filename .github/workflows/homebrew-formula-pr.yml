@@ -122,18 +122,32 @@ jobs:
           payload = json.loads(Path('tap_repo.json').read_text())
           name = payload.get('full_name')
           permissions = payload.get('permissions') or {}
-          default_branch = payload.get('default_branch') or 'main'
+          default_branch = (payload.get('default_branch') or '').strip()
+          repo_size = int(payload.get('size') or 0)
           configured_branch = (os.getenv('CFG_BASE_BRANCH') or '').strip()
           resolved_branch = configured_branch or default_branch
 
           print(f"Verified tap repository access: {name}")
-          print(f"Tap default branch: {default_branch}")
-          print(f"Resolved base branch for PR: {resolved_branch}")
+          print(f"Tap default branch: {default_branch or '<none>'}")
+          print(f"Resolved base branch for PR: {resolved_branch or '<none>'}")
 
           if permissions and not permissions.get('push', False):
               raise SystemExit(
                   "Token can read tap repo but has no push permission. "
                   "Grant contents write access for PR branch creation."
+              )
+
+          if repo_size == 0 or not default_branch:
+              raise SystemExit(
+                  "Tap repository appears empty (no default branch). "
+                  "Initialize it with an initial commit (for example README.md on main) "
+                  "and rerun the workflow."
+              )
+
+          if not resolved_branch:
+              raise SystemExit(
+                  "Could not resolve base branch for tap repository. "
+                  "Set HOMEBREW_TAP_BASE_BRANCH or initialize default branch."
               )
 
           output_path = os.environ['GITHUB_OUTPUT']

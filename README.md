@@ -245,6 +245,8 @@ When a GitHub Release is published (or via manual workflow dispatch), it will:
 
 Required setup in this source repository:
 
+- Tap repository is initialized with at least one commit and a default branch
+  - Example: create `README.md` in `stuntcoders/homebrew-meta-ads-cli` on `main`
 - Repository **secret**: `HOMEBREW_TAP_TOKEN`
   - Use a PAT or GitHub App token with write access to the tap repo
   - Needs permissions to push branches and open PRs in tap repo
