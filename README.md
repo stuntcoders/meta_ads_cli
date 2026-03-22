@@ -232,7 +232,39 @@ brew update
 brew upgrade meta-ads-cli
 ```
 
-#### Optional automation: open tap PR automatically on each release
+#### Optional automation: one-click release + auto Homebrew PR
+
+This repository includes:
+
+- `.github/workflows/release-and-publish.yml` (manual one-click release workflow)
+- `.github/workflows/homebrew-formula-pr.yml` (opens formula PR in tap after release)
+
+`release-and-publish.yml` can:
+
+1. normalize input version/tag
+2. optionally bump `pyproject.toml` + `src/meta_cli/__init__.py`
+3. optionally run lint/tests
+4. create and push Git tag
+5. create GitHub Release
+
+A published release then triggers Homebrew formula PR automation.
+
+How to run one-click release:
+
+1. Go to **Actions** → **Release and Publish** → **Run workflow**
+2. Fill inputs:
+   - `version`: `0.1.1` or `v0.1.1`
+   - `target_branch`: usually `main`
+   - `bump_version_files`: `true` (recommended)
+   - `run_validation`: `true` (recommended)
+   - `prerelease` / `draft`: as needed
+3. Run workflow and wait for release completion
+4. Review and merge the Homebrew tap PR opened by the second workflow
+
+Notes:
+
+- Workflow needs `contents: write` (already configured in workflow file).
+- If branch protection blocks direct pushes to `main`, either allow this workflow/bot to push or set `bump_version_files=false` and manage version bumps via PR first.
 
 This repository includes `.github/workflows/homebrew-formula-pr.yml`.
 
@@ -499,6 +531,7 @@ Project layout:
 - `scripts/build_artifacts.sh` — build wheel/sdist for distribution
 - `scripts/generate_brew_formula.py` — generate Homebrew formula from pinned lockfile
 - `scripts/release_brew_formula.sh` — helper wrapper for release-time formula generation
+- `.github/workflows/release-and-publish.yml` — one-click release/tag workflow
 - `.github/workflows/homebrew-formula-pr.yml` — automated PR flow to Homebrew tap repo
 - `requirements*.in` / `requirements*.lock` — reproducible dependency inputs + lockfiles
 - `LICENSE` — project license (MIT)

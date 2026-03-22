@@ -1,0 +1,174 @@
+name: Release and Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.1 or v0.1.1)"
+        required: true
+      target_branch:
+        description: "Branch to release from"
+        default: "main"
+        required: true
+      bump_version_files:
+        description: "Update pyproject.toml and src/meta_cli/__init__.py before tagging"
+        type: boolean
+        default: true
+      run_validation:
+        description: "Run lint and test before release"
+        type: boolean
+        default: true
+      prerelease:
+        description: "Mark GitHub release as prerelease"
+        type: boolean
+        default: false
+      draft:
+        description: "Create GitHub release as draft"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve release version and tag
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          RAW="${INPUT_VERSION:-}"
+          RAW="${RAW# }"
+          RAW="${RAW% }"
+          if [ -z "$RAW" ]; then
+            echo "version input is required"
+            exit 1
+          fi
+
+          VERSION="${RAW#v}"
+          TAG="v${VERSION}"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version '$VERSION' does not look like semver (example: 0.1.1, 1.2.3-rc.1)"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag does not already exist remotely
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists on origin."
+            exit 1
+          fi
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version files
+        if: ${{ github.event.inputs.bump_version_files == 'true' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          import os
+
+          version = os.environ['VERSION']
+
+          pyproject = Path('pyproject.toml')
+          text = pyproject.read_text()
+          text_new = re.sub(r'version = "[^"]+"', f'version = "{version}"', text, count=1)
+          if text == text_new:
+              raise SystemExit('Failed to update project version in pyproject.toml')
+          pyproject.write_text(text_new)
+
+          init_file = Path('src/meta_cli/__init__.py')
+          init_text = init_file.read_text()
+          init_new = re.sub(r'__version__ = "[^"]+"', f'__version__ = "{version}"', init_text, count=1)
+          if init_text == init_new:
+              raise SystemExit('Failed to update __version__ in src/meta_cli/__init__.py')
+          init_file.write_text(init_new)
+          PY
+
+      - name: Install dev dependencies
+        if: ${{ github.event.inputs.run_validation == 'true' }}
+        run: |
+          python3 -m pip install -e .[dev]
+
+      - name: Run lint and tests
+        if: ${{ github.event.inputs.run_validation == 'true' }}
+        run: |
+          python3 -m ruff check src tests
+          python3 -m pytest
+
+      - name: Commit and push version bump
+        if: ${{ github.event.inputs.bump_version_files == 'true' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET_BRANCH: ${{ github.event.inputs.target_branch }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No version file changes to commit"
+            exit 0
+          fi
+          git add pyproject.toml src/meta_cli/__init__.py
+          git commit -m "chore(release): bump version to ${VERSION}"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Create and push tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PRERELEASE: ${{ github.event.inputs.prerelease }}
+          DRAFT: ${{ github.event.inputs.draft }}
+        run: |
+          set -euo pipefail
+          cmd=(gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes)
+          if [ "$PRERELEASE" = "true" ]; then
+            cmd+=(--prerelease)
+          fi
+          if [ "$DRAFT" = "true" ]; then
+            cmd+=(--draft)
+          fi
+          "${cmd[@]}"
+
+      - name: Release summary
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          echo "✅ Release workflow completed for ${TAG}"
+          echo "ℹ️ The Homebrew formula PR workflow should trigger automatically from the published release."
