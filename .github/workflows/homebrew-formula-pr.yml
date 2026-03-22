@@ -114,19 +114,19 @@ jobs:
           fi
 
           python3 - <<'PY'
-import json
-from pathlib import Path
+          import json
+          from pathlib import Path
 
-payload = json.loads(Path('tap_repo.json').read_text())
-name = payload.get('full_name')
-permissions = payload.get('permissions') or {}
-print(f"Verified tap repository access: {name}")
-if permissions and not permissions.get('push', False):
-    raise SystemExit(
-        "Token can read tap repo but has no push permission. "
-        "Grant contents write access for PR branch creation."
-    )
-PY
+          payload = json.loads(Path('tap_repo.json').read_text())
+          name = payload.get('full_name')
+          permissions = payload.get('permissions') or {}
+          print(f"Verified tap repository access: {name}")
+          if permissions and not permissions.get('push', False):
+              raise SystemExit(
+                  "Token can read tap repo but has no push permission. "
+                  "Grant contents write access for PR branch creation."
+              )
+          PY
 
       - name: Compute source archive SHA256
         id: sha
