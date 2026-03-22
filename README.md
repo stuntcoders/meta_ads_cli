@@ -133,6 +133,12 @@ meta-cli ads pause <ad_id>
 meta-cli ads resume <ad_id>
 ```
 
+Common pagination flags for list/reporting commands:
+
+- `--after <cursor>` / `--before <cursor>`
+- `--paginate` / `--no-paginate`
+- `--max-pages <n>`
+
 ### Insights
 
 ```bash
@@ -157,6 +163,11 @@ Metrics include (when returned by API):
 
 JSON output for list/insights commands now includes a `paging` object (for example `next_after`) to support machine-driven pagination.
 
+Insights also supports custom action mappings:
+
+- `--result-action-types` (what counts as conversions)
+- `--cost-action-types` (which action drives cost-per-result)
+
 ### Media
 
 ```bash
@@ -167,6 +178,7 @@ meta-cli media upload-video ./creative.mp4 --no-wait
 ```
 
 `upload-video` now tracks processing progress in the terminal (non-JSON mode) until Meta reports completion.
+By default it waits for processing (`--wait`); use `--no-wait` to return immediately after upload.
 In `--json` mode, the response includes a `processing` object when waiting is enabled.
 
 Use the returned `image_hash` (images) or `id` (videos) in ad creation config (`image_hashes` / `video_id`).
