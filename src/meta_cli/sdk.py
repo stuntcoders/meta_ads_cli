@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 from meta_cli.config import MetaCredentials
 from meta_cli.exceptions import APIError
@@ -145,6 +146,60 @@ class MetaSDKClient:
     def get_ad(self, ad_id: str):
         Ad = self._import_class("facebook_business.adobjects.ad", "Ad")
         return Ad(ad_id)
+
+    def get_video(self, video_id: str):
+        AdVideo = self._import_class("facebook_business.adobjects.advideo", "AdVideo")
+        return AdVideo(video_id)
+
+    @staticmethod
+    def parse_video_processing_status(video_data: Dict[str, Any]) -> Dict[str, Any]:
+        status_obj = video_data.get("status")
+        progress = None
+        states: List[str] = []
+
+        def _extract_from_mapping(mapping: Dict[str, Any]) -> None:
+            nonlocal progress
+            for key in ["video_status", "processing_status", "status", "state", "phase"]:
+                value = mapping.get(key)
+                if isinstance(value, str):
+                    states.append(value.lower())
+            for key in [
+                "processing_progress",
+                "progress",
+                "progress_percent",
+                "processing_percentage",
+            ]:
+                value = mapping.get(key)
+                if isinstance(value, (int, float)):
+                    progress = int(value)
+            for value in mapping.values():
+                if isinstance(value, dict):
+                    _extract_from_mapping(value)
+
+        if isinstance(status_obj, dict):
+            _extract_from_mapping(status_obj)
+        if isinstance(video_data.get("processing_progress"), (int, float)):
+            progress = int(video_data.get("processing_progress"))
+        if isinstance(video_data.get("video_status"), str):
+            states.append(video_data.get("video_status").lower())
+
+        state = states[0] if states else "unknown"
+
+        success_states = {"ready", "finished", "available", "completed", "success"}
+        failed_states = {"error", "failed", "rejected", "timeout"}
+
+        is_failed = any(candidate in failed_states for candidate in states)
+        is_complete = (progress is not None and progress >= 100) or any(
+            candidate in success_states for candidate in states
+        )
+
+        return {
+            "state": state,
+            "progress": progress,
+            "is_complete": bool(is_complete and not is_failed),
+            "is_failed": is_failed,
+            "raw_status": status_obj,
+        }
 
     def test_auth(self) -> Dict[str, Any]:
         self.initialize()
@@ -310,6 +365,58 @@ class MetaSDKClient:
             return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to fetch ad insights: {exc}") from exc
+
+    def get_video_status(self, video_id: str) -> Dict[str, Any]:
+        self.initialize()
+        video = self.get_video(video_id)
+        try:
+            result = video.api_get(fields=["id", "status", "processing_progress", "updated_time"])
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to fetch video status for {video_id}: {exc}") from exc
+        return self.to_dict(result)
+
+    def wait_for_video_processing(
+        self,
+        video_id: str,
+        poll_interval: float = 5.0,
+        timeout: int = 1800,
+        on_update: Callable[[Dict[str, Any]], None] | None = None,
+    ) -> Dict[str, Any]:
+        if poll_interval <= 0:
+            raise APIError("poll_interval must be greater than 0")
+        if timeout <= 0:
+            raise APIError("timeout must be greater than 0")
+
+        started = time.monotonic()
+        latest: Dict[str, Any] = {}
+
+        while True:
+            status_payload = self.get_video_status(video_id)
+            parsed = self.parse_video_processing_status(status_payload)
+            elapsed = time.monotonic() - started
+            latest = {
+                "video_id": video_id,
+                "elapsed_seconds": round(elapsed, 2),
+                **parsed,
+                "status": status_payload,
+            }
+
+            if on_update:
+                on_update(latest)
+
+            if parsed["is_failed"]:
+                raise APIError(
+                    f"Video processing failed for {video_id} with state '{parsed['state']}'."
+                )
+            if parsed["is_complete"]:
+                return latest
+            if elapsed >= timeout:
+                raise APIError(
+                    f"Timed out waiting for video {video_id} processing after {timeout}s. "
+                    f"Last state='{parsed['state']}', progress={parsed['progress']}"
+                )
+
+            time.sleep(poll_interval)
 
     def upload_image(self, image_path: str) -> Dict[str, Any]:
         self.initialize()
