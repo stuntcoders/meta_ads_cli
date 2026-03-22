@@ -259,6 +259,9 @@ Optional repository variables:
 
 You can also run the workflow manually and override `tag` and `tap_repo` inputs.
 
+Important for manual runs: always provide `tag` (for example `v0.1.0`).
+If omitted, the workflow may fail because it cannot resolve a release tarball URL.
+
 ### Brew + pipx fallback (easiest operationally)
 
 If you prefer not to maintain a tap formula, this is the simplest macOS path:

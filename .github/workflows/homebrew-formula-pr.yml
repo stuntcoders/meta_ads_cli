@@ -31,6 +31,7 @@ jobs:
       - name: Resolve workflow configuration
         id: cfg
         env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
           INPUT_TAG: ${{ github.event.inputs.tag }}
           INPUT_TAP_REPO: ${{ github.event.inputs.tap_repo }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
@@ -46,11 +47,11 @@ jobs:
           if [ -z "$TAG" ]; then
             TAG="${RELEASE_TAG:-}"
           fi
-          if [ -z "$TAG" ]; then
+          if [ -z "$TAG" ] && [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
             TAG="${REF_NAME:-}"
           fi
           if [ -z "$TAG" ]; then
-            echo "Unable to resolve release tag"
+            echo "Unable to resolve release tag. For manual runs, provide workflow input 'tag' (for example: v0.1.0)."
             exit 1
           fi
 
@@ -84,9 +85,16 @@ jobs:
         id: sha
         env:
           SOURCE_URL: ${{ steps.cfg.outputs.source_url }}
+          TAG: ${{ steps.cfg.outputs.tag }}
         run: |
           set -euo pipefail
-          curl -fsSL "$SOURCE_URL" -o source.tar.gz
+          echo "Downloading source archive: $SOURCE_URL"
+          if ! curl -fLSs "$SOURCE_URL" -o source.tar.gz; then
+            echo "Failed to download source archive for tag '$TAG'."
+            echo "Confirm the tag exists in ${GITHUB_REPOSITORY} and is published."
+            echo "URL attempted: $SOURCE_URL"
+            exit 1
+          fi
           SOURCE_SHA256="$(sha256sum source.tar.gz | awk '{print $1}')"
           echo "source_sha256=$SOURCE_SHA256" >> "$GITHUB_OUTPUT"
 
