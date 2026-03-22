@@ -162,7 +162,14 @@ JSON output for list/insights commands now includes a `paging` object (for examp
 ```bash
 meta-cli media upload-image ./creative.jpg
 meta-cli media upload-video ./creative.mp4
+meta-cli media upload-video ./creative.mp4 --wait --poll-interval 5 --timeout 1800
+meta-cli media upload-video ./creative.mp4 --no-wait
 ```
+
+`upload-video` now tracks processing progress in the terminal (non-JSON mode) until Meta reports completion.
+In `--json` mode, the response includes a `processing` object when waiting is enabled.
+
+Use the returned `image_hash` (images) or `id` (videos) in ad creation config (`image_hashes` / `video_id`).
 
 ---
 
