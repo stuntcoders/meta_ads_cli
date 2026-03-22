@@ -195,6 +195,14 @@ make lint
 make test
 ```
 
+Optional live integration check:
+
+```bash
+LIVE_META_TESTS=1 python3 -m pytest tests/integration
+```
+
+This runs a real `auth test` flow and requires valid Meta env credentials.
+
 Project layout:
 
 - `src/meta_cli/` — CLI app, SDK client, schemas, commands

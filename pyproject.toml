@@ -33,6 +33,9 @@ packages = ["src/meta_cli"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 addopts = "-q"
+markers = [
+  "integration: marks tests that require live Meta credentials",
+]
 
 [tool.ruff]
 line-length = 100
