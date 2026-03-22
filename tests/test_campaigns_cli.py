@@ -11,16 +11,26 @@ class FakeClient:
     def __init__(self):
         self.last_list_kwargs = {}
 
-    def list_campaigns(self, fields, limit, after=None, before=None, auto_paginate=True, max_pages=None):
+    def list_campaigns(
+        self,
+        fields,
+        limit,
+        after=None,
+        before=None,
+        auto_paginate=True,
+        max_pages=None,
+        include_paging=False,
+    ):
         self.last_list_kwargs = {
             "after": after,
             "before": before,
             "auto_paginate": auto_paginate,
             "max_pages": max_pages,
             "limit": limit,
+            "include_paging": include_paging,
         }
         assert "id" in fields
-        return [
+        data = [
             {
                 "id": "1",
                 "name": "Camp 1",
@@ -30,6 +40,9 @@ class FakeClient:
                 "lifetime_budget": None,
             }
         ]
+        if include_paging:
+            return {"data": data, "paging": {"next_after": "cursor_next", "has_more": True}}
+        return data
 
     def update_campaign_status(self, campaign_id, status):
         return {"id": campaign_id, "status": status}
@@ -40,6 +53,8 @@ def test_campaigns_list_json(monkeypatch):
     result = runner.invoke(app, ["campaigns", "list", "--json"])
     assert result.exit_code == 0
     assert '"id": "1"' in result.stdout
+    assert '"paging"' in result.stdout
+    assert '"next_after": "cursor_next"' in result.stdout
 
 
 def test_campaigns_list_pagination_flags(monkeypatch):

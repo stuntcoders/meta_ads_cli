@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import csv
+import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import typer
 
 from meta_cli.cli_utils import build_client, handle_cli_error
 from meta_cli.exceptions import APIError, ConfigError
-from meta_cli.output import print_table
+from meta_cli.output import emit, print_table
 
 app = typer.Typer(help="Insights and performance reporting")
 
@@ -39,6 +42,22 @@ DEFAULT_COST_ACTION_TYPES = [
     "link_click",
 ]
 
+CSV_HEADERS = [
+    "ad_id",
+    "ad_name",
+    "impressions",
+    "reach",
+    "clicks",
+    "link_clicks",
+    "ctr",
+    "cpc",
+    "spend",
+    "conversions",
+    "cost_per_result",
+    "date_start",
+    "date_stop",
+]
+
 
 @app.command("ads")
 def ads_insights(
@@ -65,6 +84,12 @@ def ads_insights(
     before: Optional[str] = typer.Option(None, "--before", help="Cursor to fetch previous page from"),
     paginate: bool = typer.Option(True, "--paginate/--no-paginate", help="Auto-follow pagination"),
     max_pages: Optional[int] = typer.Option(None, "--max-pages", min=1, help="Maximum pages to fetch"),
+    output_file: Optional[str] = typer.Option(None, "--output-file", help="Write insights export to file"),
+    output_format: str = typer.Option(
+        "auto",
+        "--output-format",
+        help="Export format when --output-file is used: auto, json, csv",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON"),
 ) -> None:
     try:
@@ -78,8 +103,9 @@ def ads_insights(
         conversion_keys = _parse_action_keys(result_action_types)
         cost_keys = _parse_action_keys(cost_action_types)
 
+        include_paging = json_output or bool(output_file)
         client = build_client(auth_config)
-        insights = client.get_ad_insights(
+        result = client.get_ad_insights(
             fields=AD_INSIGHT_FIELDS,
             date_preset=date_preset,
             since=since,
@@ -90,11 +116,41 @@ def ads_insights(
             before=before,
             auto_paginate=paginate,
             max_pages=max_pages,
+            include_paging=include_paging,
         )
+
+        if include_paging:
+            insights = result["data"]
+            paging = result["paging"]
+        else:
+            insights = result
+            paging = {}
+
+        if output_file:
+            _write_insights_export(
+                output_file=output_file,
+                output_format=output_format,
+                insights=insights,
+                paging=paging,
+                conversion_keys=conversion_keys,
+                cost_keys=cost_keys,
+            )
+
         rows = [
             _insight_row(item, conversion_action_types=conversion_keys, cost_action_types=cost_keys)
             for item in insights
         ]
+
+        if json_output:
+            payload = {
+                "data": insights,
+                "paging": paging,
+            }
+            if output_file:
+                payload["output_file"] = output_file
+            emit(payload, as_json=True)
+            return
+
         print_table(
             "Ad Insights",
             [
@@ -113,9 +169,11 @@ def ads_insights(
                 "Date Stop",
             ],
             rows,
-            json_output,
+            False,
             insights,
         )
+        if output_file:
+            emit(f"Saved insights export to {output_file}")
     except (ConfigError, APIError, ValueError) as exc:
         handle_cli_error(exc, as_json=json_output)
 
@@ -165,3 +223,60 @@ def _insight_row(
         str(item.get("date_start", "")),
         str(item.get("date_stop", "")),
     ]
+
+
+def _csv_row(
+    item: Dict[str, Any],
+    conversion_keys: list[str],
+    cost_keys: list[str],
+) -> Dict[str, str]:
+    row = _insight_row(
+        item,
+        conversion_action_types=conversion_keys,
+        cost_action_types=cost_keys,
+    )
+    return {header: row[idx] if idx < len(row) else "" for idx, header in enumerate(CSV_HEADERS)}
+
+
+def _resolve_output_format(output_file: str, output_format: str) -> str:
+    normalized = output_format.lower().strip()
+    if normalized not in {"auto", "json", "csv"}:
+        raise ValueError("--output-format must be one of: auto, json, csv")
+    if normalized != "auto":
+        return normalized
+
+    suffix = Path(output_file).suffix.lower()
+    if suffix == ".csv":
+        return "csv"
+    return "json"
+
+
+def _write_insights_export(
+    output_file: str,
+    output_format: str,
+    insights: list[Dict[str, Any]],
+    paging: Dict[str, Any],
+    conversion_keys: list[str],
+    cost_keys: list[str],
+) -> None:
+    path = Path(output_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    resolved = _resolve_output_format(output_file, output_format)
+    if resolved == "json":
+        payload = {
+            "data": insights,
+            "paging": paging,
+            "meta": {
+                "conversion_action_types": conversion_keys,
+                "cost_action_types": cost_keys,
+            },
+        }
+        path.write_text(json.dumps(payload, indent=2, default=str))
+        return
+
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=CSV_HEADERS)
+        writer.writeheader()
+        for item in insights:
+            writer.writerow(_csv_row(item, conversion_keys, cost_keys))

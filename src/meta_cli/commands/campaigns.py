@@ -32,14 +32,20 @@ def list_campaigns(
 ) -> None:
     try:
         client = build_client(auth_config)
-        campaigns = client.list_campaigns(
+        result = client.list_campaigns(
             fields=CAMPAIGN_FIELDS,
             limit=limit,
             after=after,
             before=before,
             auto_paginate=paginate,
             max_pages=max_pages,
+            include_paging=json_output,
         )
+        if json_output:
+            emit(result, as_json=True)
+            return
+
+        campaigns = result
         rows = [
             [
                 item.get("id"),

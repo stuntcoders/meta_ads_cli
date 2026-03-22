@@ -13,17 +13,40 @@ class FakeAdsClient:
         self.ad_payload = None
         self.last_list_kwargs = {}
 
-    def list_all_ads(self, fields, limit, after=None, before=None, auto_paginate=True, max_pages=None):
+    def list_all_ads(
+        self,
+        fields,
+        limit,
+        after=None,
+        before=None,
+        auto_paginate=True,
+        max_pages=None,
+        include_paging=False,
+    ):
         self.last_list_kwargs = {
             "after": after,
             "before": before,
             "auto_paginate": auto_paginate,
             "max_pages": max_pages,
             "limit": limit,
+            "include_paging": include_paging,
         }
-        return [{"id": "1", "name": "Ad", "status": "PAUSED", "effective_status": "PAUSED"}]
+        data = [{"id": "1", "name": "Ad", "status": "PAUSED", "effective_status": "PAUSED"}]
+        if include_paging:
+            return {"data": data, "paging": {"next_after": "ads_next"}}
+        return data
 
-    def list_ads(self, adset_id, fields, limit, after=None, before=None, auto_paginate=True, max_pages=None):
+    def list_ads(
+        self,
+        adset_id,
+        fields,
+        limit,
+        after=None,
+        before=None,
+        auto_paginate=True,
+        max_pages=None,
+        include_paging=False,
+    ):
         self.last_list_kwargs = {
             "adset_id": adset_id,
             "after": after,
@@ -31,8 +54,12 @@ class FakeAdsClient:
             "auto_paginate": auto_paginate,
             "max_pages": max_pages,
             "limit": limit,
+            "include_paging": include_paging,
         }
-        return [{"id": "2", "name": "Ad2", "status": "ACTIVE", "adset_id": adset_id}]
+        data = [{"id": "2", "name": "Ad2", "status": "ACTIVE", "adset_id": adset_id}]
+        if include_paging:
+            return {"data": data, "paging": {"next_after": "ads_next"}}
+        return data
 
     def create_creative(self, payload):
         self.creative_payload = payload
@@ -57,6 +84,8 @@ def test_ads_list_all_json(monkeypatch):
     result = runner.invoke(app, ["ads", "list", "--all", "--json"])
     assert result.exit_code == 0
     assert '"id": "1"' in result.stdout
+    assert '"paging"' in result.stdout
+    assert '"next_after": "ads_next"' in result.stdout
 
 
 def test_ads_list_passes_pagination_flags(monkeypatch):

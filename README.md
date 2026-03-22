@@ -106,6 +106,7 @@ The CLI follows Meta's object hierarchy:
 
 ```bash
 meta-cli campaigns list
+meta-cli campaigns list --json --after <cursor> --no-paginate
 meta-cli campaigns pause <campaign_id>
 meta-cli campaigns resume <campaign_id>
 ```
@@ -114,6 +115,7 @@ meta-cli campaigns resume <campaign_id>
 
 ```bash
 meta-cli adsets list --campaign-id <campaign_id>
+meta-cli adsets list --campaign-id <campaign_id> --json --after <cursor> --max-pages 1
 meta-cli adsets create --config examples/adset.yaml
 meta-cli adsets create --campaign-id <id> --name "Test" --daily-budget 5000 --targeting-json '{"geo_locations":{"countries":["US"]}}'
 meta-cli adsets pause <adset_id>
@@ -125,6 +127,7 @@ meta-cli adsets resume <adset_id>
 ```bash
 meta-cli ads list --adset-id <adset_id>
 meta-cli ads list --all
+meta-cli ads list --all --json --after <cursor> --no-paginate
 meta-cli ads create --config examples/ad.yaml
 meta-cli ads pause <ad_id>
 meta-cli ads resume <ad_id>
@@ -135,6 +138,9 @@ meta-cli ads resume <ad_id>
 ```bash
 meta-cli insights ads --all --date-preset last_7d
 meta-cli insights ads --adset-id <id> --since 2026-03-01 --until 2026-03-21
+meta-cli insights ads --all --json --after <cursor> --no-paginate
+meta-cli insights ads --all --output-file exports/insights.json --output-format json
+meta-cli insights ads --all --output-file exports/insights.csv --output-format csv
 ```
 
 Metrics include (when returned by API):
@@ -148,6 +154,8 @@ Metrics include (when returned by API):
 - spend
 - actions/conversions
 - cost per result
+
+JSON output for list/insights commands now includes a `paging` object (for example `next_after`) to support machine-driven pagination.
 
 ### Media
 

@@ -15,7 +15,7 @@ class FakeInsightsClient:
     def get_ad_insights(self, **kwargs):
         self.last_kwargs = kwargs
         assert kwargs["date_preset"] == "last_7d"
-        return [
+        data = [
             {
                 "ad_id": "1",
                 "ad_name": "Ad",
@@ -32,6 +32,9 @@ class FakeInsightsClient:
                 "date_stop": "2026-03-07",
             }
         ]
+        if kwargs.get("include_paging"):
+            return {"data": data, "paging": {"next_after": "ins_next", "has_more": True}}
+        return data
 
 
 def test_parse_action_keys_requires_values():
@@ -76,6 +79,7 @@ def test_insights_ads_all_json(monkeypatch):
     result = runner.invoke(app, ["insights", "ads", "--all", "--json"])
     assert result.exit_code == 0
     assert '"ad_id": "1"' in result.stdout
+    assert '"next_after": "ins_next"' in result.stdout
 
 
 def test_insights_passes_pagination_options(monkeypatch):
@@ -100,3 +104,29 @@ def test_insights_passes_pagination_options(monkeypatch):
     assert result.exit_code == 0
     assert fake.last_kwargs["after"] == "cursor_2"
     assert fake.last_kwargs["auto_paginate"] is False
+
+
+def test_insights_output_file_json(monkeypatch, tmp_path):
+    output_path = tmp_path / "insights.json"
+    monkeypatch.setattr("meta_cli.commands.insights.build_client", lambda *_: FakeInsightsClient())
+    result = runner.invoke(
+        app,
+        ["insights", "ads", "--all", "--output-file", str(output_path), "--output-format", "json", "--json"],
+    )
+    assert result.exit_code == 0
+    payload = output_path.read_text()
+    assert '"paging"' in payload
+    assert '"meta"' in payload
+
+
+def test_insights_output_file_csv(monkeypatch, tmp_path):
+    output_path = tmp_path / "insights.csv"
+    monkeypatch.setattr("meta_cli.commands.insights.build_client", lambda *_: FakeInsightsClient())
+    result = runner.invoke(
+        app,
+        ["insights", "ads", "--all", "--output-file", str(output_path), "--output-format", "csv", "--json"],
+    )
+    assert result.exit_code == 0
+    content = output_path.read_text()
+    assert "ad_id,ad_name" in content
+    assert "1,Ad" in content

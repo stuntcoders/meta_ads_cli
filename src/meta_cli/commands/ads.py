@@ -42,17 +42,18 @@ def list_ads(
 
         client = build_client(auth_config)
         if all_ads:
-            ads = client.list_all_ads(
+            result = client.list_all_ads(
                 fields=AD_FIELDS,
                 limit=limit,
                 after=after,
                 before=before,
                 auto_paginate=paginate,
                 max_pages=max_pages,
+                include_paging=json_output,
             )
             title = "All Ads"
         else:
-            ads = client.list_ads(
+            result = client.list_ads(
                 adset_id=adset_id,
                 fields=AD_FIELDS,
                 limit=limit,
@@ -60,9 +61,15 @@ def list_ads(
                 before=before,
                 auto_paginate=paginate,
                 max_pages=max_pages,
+                include_paging=json_output,
             )
             title = f"Ads for Ad Set {adset_id}"
 
+        if json_output:
+            emit(result, as_json=True)
+            return
+
+        ads = result
         rows = [
             [
                 item.get("id"),

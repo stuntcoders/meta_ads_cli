@@ -20,6 +20,7 @@ class FakeAdSetClient:
         before=None,
         auto_paginate=True,
         max_pages=None,
+        include_paging=False,
     ):
         self.last_list_kwargs = {
             "campaign_id": campaign_id,
@@ -28,8 +29,12 @@ class FakeAdSetClient:
             "auto_paginate": auto_paginate,
             "max_pages": max_pages,
             "limit": limit,
+            "include_paging": include_paging,
         }
-        return [{"id": "a1", "name": "A1", "status": "PAUSED", "campaign_id": campaign_id}]
+        data = [{"id": "a1", "name": "A1", "status": "PAUSED", "campaign_id": campaign_id}]
+        if include_paging:
+            return {"data": data, "paging": {"next_after": "next_adset"}}
+        return data
 
     def create_adset(self, payload):
         return {"id": "new_adset", **payload}
@@ -57,6 +62,8 @@ def test_adsets_list_pagination_flags(monkeypatch):
     assert result.exit_code == 0
     assert fake.last_list_kwargs["before"] == "prev_1"
     assert fake.last_list_kwargs["auto_paginate"] is False
+    assert '"paging"' in result.stdout
+    assert '"next_after": "next_adset"' in result.stdout
 
 
 def test_adsets_create_dry_run_with_flags(monkeypatch):

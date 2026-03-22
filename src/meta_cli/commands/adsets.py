@@ -39,7 +39,7 @@ def list_adsets(
 ) -> None:
     try:
         client = build_client(auth_config)
-        adsets = client.list_adsets(
+        result = client.list_adsets(
             campaign_id=campaign_id,
             fields=ADSET_FIELDS,
             limit=limit,
@@ -47,7 +47,13 @@ def list_adsets(
             before=before,
             auto_paginate=paginate,
             max_pages=max_pages,
+            include_paging=json_output,
         )
+        if json_output:
+            emit(result, as_json=True)
+            return
+
+        adsets = result
         rows = [
             [
                 item.get("id"),

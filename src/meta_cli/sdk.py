@@ -49,7 +49,11 @@ class MetaSDKClient:
         return dict(obj)
 
     @staticmethod
-    def _with_pagination_params(base_params: Dict[str, Any], after: str | None, before: str | None) -> Dict[str, Any]:
+    def _with_pagination_params(
+        base_params: Dict[str, Any],
+        after: str | None,
+        before: str | None,
+    ) -> Dict[str, Any]:
         params = dict(base_params)
         if after and before:
             raise APIError("Use either --after or --before, not both")
@@ -59,25 +63,31 @@ class MetaSDKClient:
             params["before"] = before
         return params
 
+    @staticmethod
+    def _paginated_result(data: List[Dict[str, Any]], paging: Dict[str, Any]) -> Dict[str, Any]:
+        return {"data": data, "paging": paging}
+
     def _collect_cursor(
         self,
         cursor: Any,
         auto_paginate: bool = True,
         max_pages: int | None = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         if max_pages is not None and max_pages < 1:
             raise APIError("max_pages must be >= 1")
 
-        # Facebook SDK Cursor supports controlled paging via load_next_page.
         if hasattr(cursor, "load_next_page"):
             rows: List[Dict[str, Any]] = []
             pages_read = 0
+            initial_params = getattr(cursor, "params", {}) or {}
+            requested_after = initial_params.get("after")
+            requested_before = initial_params.get("before")
+
             while cursor.load_next_page():
                 pages_read += 1
                 current_items = [self.to_dict(cursor[i]) for i in range(len(cursor))]
                 rows.extend(current_items)
 
-                # Clear loaded queue so next load_next_page fetches next page.
                 if hasattr(cursor, "_queue"):
                     cursor._queue = []
 
@@ -85,10 +95,40 @@ class MetaSDKClient:
                     break
                 if max_pages is not None and pages_read >= max_pages:
                     break
-            return rows
 
-        # Fallback for mocked iterables in tests.
-        return [self.to_dict(item) for item in cursor]
+            current_params = getattr(cursor, "params", {}) or {}
+            has_more = None
+            if hasattr(cursor, "_finished_iteration"):
+                has_more = not bool(cursor._finished_iteration)
+
+            next_after = current_params.get("after") if has_more else None
+            total_count = None
+            if hasattr(cursor, "total"):
+                try:
+                    total_count = cursor.total()
+                except Exception:  # noqa: BLE001
+                    total_count = None
+
+            paging = {
+                "requested_after": requested_after,
+                "requested_before": requested_before,
+                "next_after": next_after,
+                "has_more": has_more,
+                "pages_fetched": pages_read,
+                "total_count": total_count,
+            }
+            return rows, paging
+
+        rows = [self.to_dict(item) for item in cursor]
+        paging = {
+            "requested_after": None,
+            "requested_before": None,
+            "next_after": None,
+            "has_more": None,
+            "pages_fetched": 1 if rows else 0,
+            "total_count": None,
+        }
+        return rows, paging
 
     def get_ad_account(self):
         _, AdAccount = self._core_imports()
@@ -128,13 +168,21 @@ class MetaSDKClient:
         before: str | None = None,
         auto_paginate: bool = True,
         max_pages: int | None = None,
-    ) -> List[Dict[str, Any]]:
+        include_paging: bool = False,
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
         self.initialize()
         account = self.get_ad_account()
         params = self._with_pagination_params({"limit": limit}, after, before)
         try:
             cursor = account.get_campaigns(fields=fields, params=params)
-            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
+            rows, paging = self._collect_cursor(
+                cursor,
+                auto_paginate=auto_paginate,
+                max_pages=max_pages,
+            )
+            if include_paging:
+                return self._paginated_result(rows, paging)
+            return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list campaigns: {exc}") from exc
 
@@ -147,13 +195,21 @@ class MetaSDKClient:
         before: str | None = None,
         auto_paginate: bool = True,
         max_pages: int | None = None,
-    ) -> List[Dict[str, Any]]:
+        include_paging: bool = False,
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
         self.initialize()
         campaign = self.get_campaign(campaign_id)
         params = self._with_pagination_params({"limit": limit}, after, before)
         try:
             cursor = campaign.get_ad_sets(fields=fields, params=params)
-            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
+            rows, paging = self._collect_cursor(
+                cursor,
+                auto_paginate=auto_paginate,
+                max_pages=max_pages,
+            )
+            if include_paging:
+                return self._paginated_result(rows, paging)
+            return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list ad sets for campaign {campaign_id}: {exc}") from exc
 
@@ -166,13 +222,21 @@ class MetaSDKClient:
         before: str | None = None,
         auto_paginate: bool = True,
         max_pages: int | None = None,
-    ) -> List[Dict[str, Any]]:
+        include_paging: bool = False,
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
         self.initialize()
         adset = self.get_adset(adset_id)
         params = self._with_pagination_params({"limit": limit}, after, before)
         try:
             cursor = adset.get_ads(fields=fields, params=params)
-            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
+            rows, paging = self._collect_cursor(
+                cursor,
+                auto_paginate=auto_paginate,
+                max_pages=max_pages,
+            )
+            if include_paging:
+                return self._paginated_result(rows, paging)
+            return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list ads for ad set {adset_id}: {exc}") from exc
 
@@ -184,13 +248,21 @@ class MetaSDKClient:
         before: str | None = None,
         auto_paginate: bool = True,
         max_pages: int | None = None,
-    ) -> List[Dict[str, Any]]:
+        include_paging: bool = False,
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
         self.initialize()
         account = self.get_ad_account()
         params = self._with_pagination_params({"limit": limit}, after, before)
         try:
             cursor = account.get_ads(fields=fields, params=params)
-            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
+            rows, paging = self._collect_cursor(
+                cursor,
+                auto_paginate=auto_paginate,
+                max_pages=max_pages,
+            )
+            if include_paging:
+                return self._paginated_result(rows, paging)
+            return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list all ads: {exc}") from exc
 
@@ -206,9 +278,14 @@ class MetaSDKClient:
         before: str | None = None,
         auto_paginate: bool = True,
         max_pages: int | None = None,
-    ) -> List[Dict[str, Any]]:
+        include_paging: bool = False,
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
         self.initialize()
-        params: Dict[str, Any] = self._with_pagination_params({"level": "ad", "limit": limit}, after, before)
+        params: Dict[str, Any] = self._with_pagination_params(
+            {"level": "ad", "limit": limit},
+            after,
+            before,
+        )
         if date_preset:
             params["date_preset"] = date_preset
         elif since and until:
@@ -223,7 +300,14 @@ class MetaSDKClient:
             else:
                 account = self.get_ad_account()
                 cursor = account.get_insights(fields=fields, params=params)
-            return self._collect_cursor(cursor, auto_paginate=auto_paginate, max_pages=max_pages)
+            rows, paging = self._collect_cursor(
+                cursor,
+                auto_paginate=auto_paginate,
+                max_pages=max_pages,
+            )
+            if include_paging:
+                return self._paginated_result(rows, paging)
+            return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to fetch ad insights: {exc}") from exc
 
