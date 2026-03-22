@@ -19,6 +19,7 @@ jobs:
       DEFAULT_FORMULA_NAME: meta-ads-cli
       DEFAULT_FORMULA_PATH: Formula/meta-ads-cli.rb
       DEFAULT_BASE_BRANCH: main
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout source repository
         uses: actions/checkout@v4
@@ -80,6 +81,52 @@ jobs:
             echo "source_url=$SOURCE_URL"
             echo "homepage=$HOMEPAGE"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Show resolved release configuration
+        run: |
+          echo "Tag: ${{ steps.cfg.outputs.tag }}"
+          echo "Tap repo: ${{ steps.cfg.outputs.tap_repo }}"
+          echo "Formula path: ${{ steps.cfg.outputs.formula_path }}"
+          echo "Base branch: ${{ steps.cfg.outputs.base_branch }}"
+          echo "Source URL: ${{ steps.cfg.outputs.source_url }}"
+
+      - name: Validate tap repository access
+        env:
+          TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_REPO: ${{ steps.cfg.outputs.tap_repo }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN is not set. Add it in repository secrets."
+            exit 1
+          fi
+
+          STATUS_CODE="$(curl -sS -o tap_repo.json -w "%{http_code}" \
+            -H "Authorization: token ${TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${TAP_REPO}")"
+
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Unable to access tap repo '${TAP_REPO}' with provided token (HTTP ${STATUS_CODE})."
+            echo "Response:"
+            cat tap_repo.json
+            exit 1
+          fi
+
+          python3 - <<'PY'
+import json
+from pathlib import Path
+
+payload = json.loads(Path('tap_repo.json').read_text())
+name = payload.get('full_name')
+permissions = payload.get('permissions') or {}
+print(f"Verified tap repository access: {name}")
+if permissions and not permissions.get('push', False):
+    raise SystemExit(
+        "Token can read tap repo but has no push permission. "
+        "Grant contents write access for PR branch creation."
+    )
+PY
 
       - name: Compute source archive SHA256
         id: sha

@@ -262,6 +262,21 @@ You can also run the workflow manually and override `tag` and `tap_repo` inputs.
 Important for manual runs: always provide `tag` (for example `v0.1.0`).
 If omitted, the workflow may fail because it cannot resolve a release tarball URL.
 
+Workflow diagnostics include:
+
+- resolved tag/source URL output
+- tap repository access validation (with explicit HTTP error body)
+- source download failure details
+
+If the workflow fails, open the failed run and inspect the first red step:
+
+- `Resolve workflow configuration`
+- `Validate tap repository access`
+- `Compute source archive SHA256`
+- `Create pull request in tap repository`
+
+Note: GitHub may display Node runtime deprecation warnings for marketplace actions. Those warnings are informational unless they explicitly fail a step.
+
 ### Brew + pipx fallback (easiest operationally)
 
 If you prefer not to maintain a tap formula, this is the simplest macOS path:
