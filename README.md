@@ -32,33 +32,12 @@ Full setup/configuration guide:
 
 ## Installation
 
-## 1) Local install (from source repo)
+### Recommended install paths
 
-Repository URL:
+- **macOS:** Homebrew
+- **Ubuntu/Debian/other Linux distros:** pipx
 
-- `https://github.com/stuntcoders/meta_ads_cli`
-
-Install:
-
-```bash
-git clone https://github.com/stuntcoders/meta_ads_cli.git
-cd meta_ads_cli
-python3 -m pip install .
-```
-
-Verify:
-
-```bash
-meta-cli --help
-```
-
-For development install:
-
-```bash
-python3 -m pip install -e ".[dev]"
-```
-
-## 2) Homebrew install (recommended for team machines)
+### 1) Homebrew install (macOS, recommended)
 
 Tap repository URL:
 
@@ -84,9 +63,7 @@ brew update
 brew upgrade meta-ads-cli
 ```
 
-## 3) pipx install (global, isolated Python env)
-
-`pipx` is a good alternative when you do not want Homebrew-managed formula updates.
+### 2) pipx install (for Ubuntu, Debian, and other Linux distros)
 
 If `pipx` is not installed:
 
@@ -95,16 +72,22 @@ python3 -m pip install --user pipx
 python3 -m pipx ensurepath
 ```
 
-Install from repository:
+Install latest from repository:
 
 ```bash
 pipx install "git+https://github.com/stuntcoders/meta_ads_cli.git"
 ```
 
-Install pinned release:
+Install a pinned release tag:
 
 ```bash
 pipx install "git+https://github.com/stuntcoders/meta_ads_cli.git@v0.1.0"
+```
+
+Verify:
+
+```bash
+meta-cli --help
 ```
 
 Upgrade later:
@@ -113,10 +96,24 @@ Upgrade later:
 pipx upgrade meta-ads-cli
 ```
 
-Local maintainers can also run:
+### 3) Local source install (less common; maintainers/advanced users)
+
+Repository URL:
+
+- `https://github.com/stuntcoders/meta_ads_cli`
+
+Install from source:
 
 ```bash
-make install-pipx-local
+git clone https://github.com/stuntcoders/meta_ads_cli.git
+cd meta_ads_cli
+python3 -m pip install .
+```
+
+Dev editable install:
+
+```bash
+python3 -m pip install -e ".[dev]"
 ```
 
 ---
