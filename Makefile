@@ -1,4 +1,4 @@
-.PHONY: install install-lock install-global-local lock build brew-formula test lint run
+.PHONY: install install-lock install-pipx-local install-pipx-git install-global-local lock build brew-formula test lint run
 
 install:
 	python3 -m pip install -e .[dev]
@@ -6,10 +6,18 @@ install:
 install-lock:
 	python3 -m pip install -r requirements-dev.lock
 
-install-global-local:
+install-pipx-local:
 	python3 -m pip install --user pipx
 	python3 -m pipx ensurepath
 	python3 -m pipx install --force .
+
+install-pipx-git:
+	python3 -m pip install --user pipx
+	python3 -m pipx ensurepath
+	python3 -m pipx install --force "git+https://github.com/stuntcoders/meta_ads_cli.git"
+
+# Backward-compatible alias
+install-global-local: install-pipx-local
 
 lock:
 	python3 -m piptools compile --strip-extras --output-file requirements.lock requirements.in

@@ -84,6 +84,41 @@ brew update
 brew upgrade meta-ads-cli
 ```
 
+## 3) pipx install (global, isolated Python env)
+
+`pipx` is a good alternative when you do not want Homebrew-managed formula updates.
+
+If `pipx` is not installed:
+
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+```
+
+Install from repository:
+
+```bash
+pipx install "git+https://github.com/stuntcoders/meta_ads_cli.git"
+```
+
+Install pinned release:
+
+```bash
+pipx install "git+https://github.com/stuntcoders/meta_ads_cli.git@v0.1.0"
+```
+
+Upgrade later:
+
+```bash
+pipx upgrade meta-ads-cli
+```
+
+Local maintainers can also run:
+
+```bash
+make install-pipx-local
+```
+
 ---
 
 ## Configuration
@@ -191,6 +226,13 @@ Ensure:
 - install command uses full formula reference: `brew install stuntcoders/meta-ads-cli/meta-ads-cli`
 - formula exists in tap repo at `Formula/meta-ads-cli.rb`
 - your tap formula is up to date (newer generated formulas include `rust` as a build dependency for `pydantic-core`)
+
+### pipx install issues
+
+Ensure:
+
+- `pipx` is installed and path is initialized (`python3 -m pipx ensurepath`)
+- you use the full Git URL: `git+https://github.com/stuntcoders/meta_ads_cli.git`
 
 ---
 
