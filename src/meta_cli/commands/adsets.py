@@ -25,6 +25,24 @@ ADSET_FIELDS = [
     "end_time",
 ]
 
+ADSET_DETAIL_FIELDS = [
+    "id",
+    "name",
+    "status",
+    "campaign_id",
+    "optimization_goal",
+    "billing_event",
+    "bid_strategy",
+    "bid_amount",
+    "daily_budget",
+    "lifetime_budget",
+    "start_time",
+    "end_time",
+    "targeting",
+    "created_time",
+    "updated_time",
+]
+
 
 @app.command("list")
 def list_adsets(
@@ -74,6 +92,25 @@ def list_adsets(
             json_output,
             adsets,
         )
+    except (ConfigError, APIError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
+@app.command("get")
+def get_adset(
+    adset_id: str,
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    try:
+        client = build_client(auth_config)
+        adset = client.get_adset_details(adset_id, fields=ADSET_DETAIL_FIELDS)
+        if json_output:
+            emit(adset, as_json=True)
+            return
+
+        rows = [[key, adset.get(key)] for key in ADSET_DETAIL_FIELDS]
+        print_table(f"Ad Set {adset_id}", ["Field", "Value"], rows, False)
     except (ConfigError, APIError) as exc:
         handle_cli_error(exc, as_json=json_output)
 

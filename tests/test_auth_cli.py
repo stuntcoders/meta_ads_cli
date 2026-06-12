@@ -29,6 +29,11 @@ def test_auth_test_success(monkeypatch):
 
 
 def test_auth_test_failure(monkeypatch):
+    monkeypatch.delenv("META_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("META_APP_ID", raising=False)
+    monkeypatch.delenv("META_APP_SECRET", raising=False)
+    monkeypatch.delenv("META_AD_ACCOUNT_ID", raising=False)
+
     result = runner.invoke(app, ["auth", "test", "--json"])
 
     assert result.exit_code == 1

@@ -19,6 +19,20 @@ CAMPAIGN_FIELDS = [
     "lifetime_budget",
 ]
 
+CAMPAIGN_DETAIL_FIELDS = [
+    "id",
+    "name",
+    "status",
+    "objective",
+    "buying_type",
+    "daily_budget",
+    "lifetime_budget",
+    "start_time",
+    "stop_time",
+    "created_time",
+    "updated_time",
+]
+
 
 @app.command("list")
 def list_campaigns(
@@ -58,6 +72,25 @@ def list_campaigns(
             for item in campaigns
         ]
         print_table("Campaigns", ["ID", "Name", "Status", "Objective", "Daily", "Lifetime"], rows, json_output, campaigns)
+    except (ConfigError, APIError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
+@app.command("get")
+def get_campaign(
+    campaign_id: str,
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    try:
+        client = build_client(auth_config)
+        campaign = client.get_campaign_details(campaign_id, fields=CAMPAIGN_DETAIL_FIELDS)
+        if json_output:
+            emit(campaign, as_json=True)
+            return
+
+        rows = [[key, campaign.get(key)] for key in CAMPAIGN_DETAIL_FIELDS]
+        print_table(f"Campaign {campaign_id}", ["Field", "Value"], rows, False)
     except (ConfigError, APIError) as exc:
         handle_cli_error(exc, as_json=json_output)
 

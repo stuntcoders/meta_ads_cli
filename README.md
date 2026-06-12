@@ -139,9 +139,12 @@ meta-cli auth test --json
 
 ```bash
 meta-cli campaigns list
+meta-cli campaigns get <campaign_id>
 meta-cli adsets list --campaign-id <campaign_id>
+meta-cli adsets get <adset_id>
 meta-cli ads list --adset-id <adset_id>
 meta-cli ads list --all
+meta-cli ads get <ad_id>
 ```
 
 ### Insights

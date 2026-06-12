@@ -10,6 +10,7 @@ runner = CliRunner()
 class FakeClient:
     def __init__(self):
         self.last_list_kwargs = {}
+        self.last_get_campaign = None
 
     def list_campaigns(
         self,
@@ -44,6 +45,15 @@ class FakeClient:
             return {"data": data, "paging": {"next_after": "cursor_next", "has_more": True}}
         return data
 
+    def get_campaign_details(self, campaign_id, fields):
+        self.last_get_campaign = {"campaign_id": campaign_id, "fields": fields}
+        return {
+            "id": campaign_id,
+            "name": "Camp 1",
+            "status": "PAUSED",
+            "objective": "OUTCOME_LEADS",
+        }
+
     def update_campaign_status(self, campaign_id, status):
         return {"id": campaign_id, "status": status}
 
@@ -77,6 +87,18 @@ def test_campaigns_list_pagination_flags(monkeypatch):
     assert fake.last_list_kwargs["after"] == "abc"
     assert fake.last_list_kwargs["auto_paginate"] is False
     assert fake.last_list_kwargs["max_pages"] == 2
+
+
+def test_campaign_get_json(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+    result = runner.invoke(app, ["campaigns", "get", "123", "--json"])
+
+    assert result.exit_code == 0
+    assert '"id": "123"' in result.stdout
+    assert fake.last_get_campaign is not None
+    assert fake.last_get_campaign["campaign_id"] == "123"
+    assert "created_time" in fake.last_get_campaign["fields"]
 
 
 def test_campaign_pause_dry_run(monkeypatch):

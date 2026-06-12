@@ -21,6 +21,19 @@ AD_FIELDS = [
     "creative",
 ]
 
+AD_DETAIL_FIELDS = [
+    "id",
+    "name",
+    "status",
+    "effective_status",
+    "adset_id",
+    "campaign_id",
+    "creative",
+    "tracking_specs",
+    "created_time",
+    "updated_time",
+]
+
 
 @app.command("list")
 def list_ads(
@@ -89,6 +102,25 @@ def list_ads(
             ads,
         )
     except (ConfigError, APIError, ValueError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
+@app.command("get")
+def get_ad(
+    ad_id: str,
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    try:
+        client = build_client(auth_config)
+        ad = client.get_ad_details(ad_id, fields=AD_DETAIL_FIELDS)
+        if json_output:
+            emit(ad, as_json=True)
+            return
+
+        rows = [[key, ad.get(key)] for key in AD_DETAIL_FIELDS]
+        print_table(f"Ad {ad_id}", ["Field", "Value"], rows, False)
+    except (ConfigError, APIError) as exc:
         handle_cli_error(exc, as_json=json_output)
 
 

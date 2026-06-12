@@ -84,18 +84,32 @@ class MetaSDKClient:
             requested_after = initial_params.get("after")
             requested_before = initial_params.get("before")
 
-            while cursor.load_next_page():
-                pages_read += 1
+            def _consume_current_page() -> None:
+                nonlocal pages_read
                 current_items = [self.to_dict(cursor[i]) for i in range(len(cursor))]
-                rows.extend(current_items)
-
+                if current_items:
+                    rows.extend(current_items)
+                    pages_read += 1
                 if hasattr(cursor, "_queue"):
                     cursor._queue = []
 
-                if not auto_paginate:
+            # Some SDK cursors are preloaded with the first page immediately.
+            # Consume that page first so we don't drop rows when load_next_page()
+            # returns False right away.
+            if len(cursor) > 0:
+                _consume_current_page()
+
+            while True:
+                if not auto_paginate and pages_read > 0:
                     break
                 if max_pages is not None and pages_read >= max_pages:
                     break
+
+                has_next_page = cursor.load_next_page()
+                if not has_next_page:
+                    break
+
+                _consume_current_page()
 
             current_params = getattr(cursor, "params", {}) or {}
             has_more = None
@@ -150,6 +164,33 @@ class MetaSDKClient:
     def get_video(self, video_id: str):
         AdVideo = self._import_class("facebook_business.adobjects.advideo", "AdVideo")
         return AdVideo(video_id)
+
+    def get_campaign_details(self, campaign_id: str, fields: List[str]) -> Dict[str, Any]:
+        self.initialize()
+        campaign = self.get_campaign(campaign_id)
+        try:
+            result = campaign.api_get(fields=fields)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to fetch campaign {campaign_id}: {exc}") from exc
+        return self.to_dict(result)
+
+    def get_adset_details(self, adset_id: str, fields: List[str]) -> Dict[str, Any]:
+        self.initialize()
+        adset = self.get_adset(adset_id)
+        try:
+            result = adset.api_get(fields=fields)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to fetch ad set {adset_id}: {exc}") from exc
+        return self.to_dict(result)
+
+    def get_ad_details(self, ad_id: str, fields: List[str]) -> Dict[str, Any]:
+        self.initialize()
+        ad = self.get_ad(ad_id)
+        try:
+            result = ad.api_get(fields=fields)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to fetch ad {ad_id}: {exc}") from exc
+        return self.to_dict(result)
 
     @staticmethod
     def parse_video_processing_status(video_data: Dict[str, Any]) -> Dict[str, Any]:

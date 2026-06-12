@@ -12,6 +12,7 @@ class FakeAdsClient:
         self.creative_payload = None
         self.ad_payload = None
         self.last_list_kwargs = {}
+        self.last_get_ad = None
 
     def list_all_ads(
         self,
@@ -61,6 +62,17 @@ class FakeAdsClient:
             return {"data": data, "paging": {"next_after": "ads_next"}}
         return data
 
+    def get_ad_details(self, ad_id, fields):
+        self.last_get_ad = {"ad_id": ad_id, "fields": fields}
+        return {
+            "id": ad_id,
+            "name": "Ad",
+            "status": "ACTIVE",
+            "effective_status": "ACTIVE",
+            "adset_id": "adset_1",
+            "campaign_id": "campaign_1",
+        }
+
     def create_creative(self, payload):
         self.creative_payload = payload
         return {"id": "creative_1", **payload}
@@ -99,6 +111,18 @@ def test_ads_list_passes_pagination_flags(monkeypatch):
     assert fake.last_list_kwargs["after"] == "c2"
     assert fake.last_list_kwargs["auto_paginate"] is False
     assert fake.last_list_kwargs["max_pages"] == 2
+
+
+def test_ads_get_json(monkeypatch):
+    fake = FakeAdsClient()
+    monkeypatch.setattr("meta_cli.commands.ads.build_client", lambda *_: fake)
+    result = runner.invoke(app, ["ads", "get", "ad_1", "--json"])
+
+    assert result.exit_code == 0
+    assert '"id": "ad_1"' in result.stdout
+    assert fake.last_get_ad is not None
+    assert fake.last_get_ad["ad_id"] == "ad_1"
+    assert "tracking_specs" in fake.last_get_ad["fields"]
 
 
 def test_ads_create_dry_run_multi_text(monkeypatch):
