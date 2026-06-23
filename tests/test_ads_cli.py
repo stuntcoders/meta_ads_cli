@@ -84,6 +84,9 @@ class FakeAdsClient:
     def update_ad_status(self, ad_id, status):
         return {"id": ad_id, "status": status}
 
+    def update_ad_creative(self, ad_id, creative_id):
+        return {"id": ad_id, "creative": {"creative_id": creative_id}}
+
 
 def test_ads_list_requires_scope():
     result = runner.invoke(app, ["ads", "list", "--json"])
@@ -182,6 +185,37 @@ def test_ads_create_non_dry_run_calls_creative_and_ad(monkeypatch):
     assert result.exit_code == 0
     assert fake.creative_payload is not None
     assert fake.ad_payload["creative"]["creative_id"] == "creative_1"
+
+
+def test_ads_update_creative_dry_run(monkeypatch):
+    monkeypatch.setattr("meta_cli.commands.ads.build_client", lambda *_: FakeAdsClient())
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "update-creative",
+            "a1",
+            "--creative-id",
+            "c2",
+            "--yes",
+            "--dry-run",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0
+    assert '"ad_id": "a1"' in result.stdout
+    assert '"creative_id": "c2"' in result.stdout
+
+
+def test_ads_update_creative_calls_sdk(monkeypatch):
+    monkeypatch.setattr("meta_cli.commands.ads.build_client", lambda *_: FakeAdsClient())
+    result = runner.invoke(
+        app,
+        ["ads", "update-creative", "a1", "--creative-id", "c2", "--yes", "--json"],
+    )
+    assert result.exit_code == 0
+    assert '"ok": true' in result.stdout.lower()
+    assert '"creative_id": "c2"' in result.stdout
 
 
 def test_ads_pause_dry_run(monkeypatch):

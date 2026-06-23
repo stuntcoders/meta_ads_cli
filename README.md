@@ -10,6 +10,7 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 - Upload image/video assets
 - Create ad sets and ads from YAML or flags
 - Pause/resume campaigns, ad sets, ads
+- Update an ad to use a different creative
 
 ---
 
@@ -167,6 +168,7 @@ meta-cli media upload-video ./creative.mp4
 ```bash
 meta-cli adsets create --config examples/adset.yaml
 meta-cli ads create --config examples/ad.yaml
+meta-cli ads update-creative <ad_id> --creative-id <creative_id> --yes
 ```
 
 ### Status control

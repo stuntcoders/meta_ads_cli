@@ -21,6 +21,10 @@ Maintain and extend `meta-cli` as a production-grade Meta Ads CLI with strong sa
 4. **Safety-first defaults**
    - Preserve PAUSED defaults for spend-affecting create flows unless explicitly requested.
    - Keep confirmations for pause/resume or spend-affecting operations unless `--yes` is passed.
+5. **Promote script-only operations into CLI features**
+   - If an agent uses an ad-hoc Python script to perform a useful/recurring operation (especially with the Meta SDK), treat that as product debt.
+   - Add or extend a first-class `meta-cli` command/flag for that operation in the same milestone when practical.
+   - Add/update tests and README examples for the new CLI surface so users do not need ad-hoc scripts for that workflow.
 
 ## Development workflow (agent loop)
 

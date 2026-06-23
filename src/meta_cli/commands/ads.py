@@ -219,6 +219,42 @@ def create_ad(
         handle_cli_error(exc, as_json=json_output)
 
 
+@app.command("update-creative")
+def update_ad_creative(
+    ad_id: str,
+    creative_id: str = typer.Option(..., "--creative-id", help="Creative ID to attach to the ad"),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show action without updating"),
+) -> None:
+    try:
+        require_confirmation(
+            f"Update ad {ad_id} to use creative {creative_id}?",  # spend-affecting change
+            yes=yes,
+        )
+        if dry_run:
+            emit(
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "ad_id": ad_id,
+                    "creative_id": creative_id,
+                },
+                as_json=json_output,
+            )
+            return
+
+        client = build_client(auth_config)
+        result = client.update_ad_creative(ad_id, creative_id)
+        emit(
+            {"ok": True, "ad_id": ad_id, "creative_id": creative_id, "result": result},
+            as_json=json_output,
+        )
+    except (ConfigError, APIError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
 @app.command("pause")
 def pause_ad(
     ad_id: str,

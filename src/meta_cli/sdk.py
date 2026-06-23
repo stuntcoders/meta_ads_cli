@@ -536,3 +536,12 @@ class MetaSDKClient:
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to update ad {ad_id}: {exc}") from exc
         return self.to_dict(result)
+
+    def update_ad_creative(self, ad_id: str, creative_id: str) -> Dict[str, Any]:
+        self.initialize()
+        ad = self.get_ad(ad_id)
+        try:
+            result = ad.api_update(params={"creative": {"creative_id": creative_id}})
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to update creative for ad {ad_id}: {exc}") from exc
+        return self.to_dict(result)
