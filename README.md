@@ -123,7 +123,98 @@ python3 -m pip install -e ".[dev]"
 
 ## Configuration
 
-See full configuration details in:
+### Set up a named environment
+
+The recommended workflow stores one or more named profiles in a private YAML file. The path is:
+
+- `$META_CLI_ENVIRONMENTS_FILE` when set (recommended for tests and automation)
+- `$XDG_CONFIG_HOME/meta-ads-cli/environments.yaml` when `XDG_CONFIG_HOME` is set
+- `~/.config/meta-ads-cli/environments.yaml` otherwise
+
+Create the parent directory and file, then protect the file because it contains access tokens and
+app secrets:
+
+```bash
+mkdir -p "$HOME/.config/meta-ads-cli"
+cat > "$HOME/.config/meta-ads-cli/environments.yaml" <<'YAML'
+active_profile: null
+profiles:
+  sandbox:
+    display_name: Sandbox account
+    access_token: "replace-with-access-token"
+    app_id: "replace-with-app-id"
+    app_secret: "replace-with-app-secret"
+    ad_account_id: "act_1234567890"
+    api_version: "v25.0"
+    # Optional defaults/metadata:
+    # system_user_id: "1234567890"
+    # facebook_page_id: "1234567890"
+    # instagram_user_id: "1234567890"
+YAML
+chmod 600 "$HOME/.config/meta-ads-cli/environments.yaml"
+```
+
+The top-level keys are `active_profile` and `profiles`; profile names are the keys beneath
+`profiles`. Lowercase profile keys shown above are canonical. Numeric `ad_account_id` values are
+accepted and normalized to `act_...`; `api_version` defaults to `v25.0` if omitted. Do not commit
+this file or expose it in logs. Selection writes are atomic where supported and enforce owner-only
+(`0600`) file permissions.
+
+A new store **does not automatically select any profile**, even when it contains only one. Inspect
+and select one explicitly:
+
+```bash
+meta-cli environments list
+meta-cli environments current        # exits with guidance until a profile is selected
+meta-cli environments use sandbox
+meta-cli environments current
+meta-cli auth test
+```
+
+`list` marks the active profile, `current` shows it, and `use` persists only a name already present
+in the store. Add `--json` to any environment command for structured output. Output is restricted to
+non-secret identity metadata: name, display name, ad account, API version, and optional actor IDs.
+A successful `auth test` also reports the active environment; JSON includes `active_environment` and
+`auth_source`.
+
+For an isolated automation or test store:
+
+```bash
+export META_CLI_ENVIRONMENTS_FILE="$RUNNER_TEMP/meta-cli/environments.yaml"
+```
+
+Create that file with the same schema and `0600` permissions. The override changes only the store
+location; it does not select a profile.
+
+The optional `facebook_page_id` and `instagram_user_id` provide defaults when `ads create` omits the
+matching flags or YAML values. Explicit command/YAML values take precedence. Existing creative-ID
+flows do not use these defaults, and an explicit legacy `instagram_actor_id` prevents injection of
+the profile Instagram user ID.
+
+### Legacy auth files and migration
+
+Existing flat auth YAML files remain supported as deliberate per-command overrides. Keep their
+uppercase keys (`META_ACCESS_TOKEN`, `META_APP_ID`, `META_APP_SECRET`, `META_AD_ACCOUNT_ID`, and
+optional `META_API_VERSION`) and pass the file explicitly:
+
+```bash
+meta-cli auth test --config "$HOME/.meta-ads-auth.yaml"
+meta-cli campaigns list --auth-config "$HOME/.meta-ads-auth.yaml"
+meta-cli ads create --config examples/ad.yaml --auth-config "$HOME/.meta-ads-auth.yaml"
+```
+
+An explicit `--config`/`--auth-config` has precedence over the selected named environment. Matching
+ambient `META_*` variables may override values in that explicit legacy file. Without an explicit
+legacy file, ambient credential variables are ignored and the selected named environment is used.
+The legacy path does not borrow Page/Instagram defaults from a selected profile. In `auth test`
+output it reports `auth_source: legacy_config` and `active_environment: null`.
+
+To migrate, copy each legacy file's values into a lowercase named profile, leave
+`active_profile: null`, inspect with `environments list`, explicitly select with `environments use`,
+and validate with `auth test`. Retain or remove the old file according to your secret-rotation and
+retention policy.
+
+See the detailed setup and migration guide:
 
 - [`docs/meta-setup-and-configuration.md`](docs/meta-setup-and-configuration.md)
 
@@ -167,6 +258,10 @@ meta-cli environments use brand-a
 meta-cli auth test
 meta-cli auth test --json
 ```
+
+Successful auth tests identify the selected environment in human output. JSON output includes stable
+`active_environment` and `auth_source` fields. With an explicit legacy `--config` override,
+`active_environment` is `null` and `auth_source` is `legacy_config`; credentials are never shown.
 
 ### List objects
 
@@ -282,7 +377,12 @@ for machine-readable output.
 
 For Instagram delivery, set `instagram_user_id` in ad YAML or pass `--instagram-user-id`; use the
 legacy `instagram_actor_id` / `--instagram-actor-id` only for accounts that still expose an actor
-ID. `creatives get` shows the identity field used by an existing working creative.
+ID. If ad YAML or command flags omit `page_id` / `--page-id` and the Instagram identity, `ads create`
+uses the selected named profile's optional `facebook_page_id` and `instagram_user_id`. Explicit ad
+values take precedence, including an explicit legacy Instagram actor ID. Supplying `--auth-config`
+is a deliberate legacy override and therefore does not borrow identity defaults from the selected
+profile. If no explicit or profile Facebook Page ID is available, the existing validation error is
+preserved. `creatives get` shows the identity field used by an existing working creative.
 
 For placement-specific static creative, `ads create` accepts `image_assets` and
 `asset_customization_rules` in YAML. Each image asset has a Meta image `hash` and a unique,
