@@ -143,6 +143,8 @@ def test_ads_create_dry_run_multi_text(monkeypatch):
             "Test Ad",
             "--page-id",
             "p1",
+            "--instagram-user-id",
+            "ig1",
             "--destination-url",
             "https://example.com",
             "--headlines",
@@ -156,7 +158,9 @@ def test_ads_create_dry_run_multi_text(monkeypatch):
         ],
     )
     assert result.exit_code == 0
-    assert '"uses_asset_feed_spec": true' in result.stdout.lower()
+    payload = json.loads(result.stdout)
+    assert payload["uses_asset_feed_spec"] is True
+    assert payload["creative_payload"]["object_story_spec"]["instagram_user_id"] == "ig1"
 
 
 def test_ads_create_placement_images_from_json_flags_dry_run():

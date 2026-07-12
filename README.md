@@ -238,6 +238,10 @@ versions require `is_adset_budget_sharing_enabled`; set it in YAML or use
 inspect the exact payload without loading credentials or making a Meta SDK request; add `--json`
 for machine-readable output.
 
+For Instagram delivery, set `instagram_user_id` in ad YAML or pass `--instagram-user-id`; use the
+legacy `instagram_actor_id` / `--instagram-actor-id` only for accounts that still expose an actor
+ID. `creatives get` shows the identity field used by an existing working creative.
+
 For placement-specific static creative, `ads create` accepts `image_assets` and
 `asset_customization_rules` in YAML. Each image asset has a Meta image `hash` and a unique,
 nonblank `label`; each rule has a Meta `customization_spec`, an `image_label` referencing one of

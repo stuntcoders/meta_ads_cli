@@ -132,7 +132,10 @@ def create_ad(
     name: Optional[str] = typer.Option(None, "--name", help="Ad name"),
     page_id: Optional[str] = typer.Option(None, "--page-id", help="Facebook page ID"),
     instagram_actor_id: Optional[str] = typer.Option(
-        None, "--instagram-actor-id", help="Instagram actor ID"
+        None, "--instagram-actor-id", help="Legacy Instagram actor ID"
+    ),
+    instagram_user_id: Optional[str] = typer.Option(
+        None, "--instagram-user-id", help="Instagram user ID for the object story"
     ),
     destination_url: Optional[str] = typer.Option(
         None, "--destination-url", help="Destination website URL"
@@ -178,6 +181,7 @@ def create_ad(
             name=name,
             page_id=page_id,
             instagram_actor_id=instagram_actor_id,
+            instagram_user_id=instagram_user_id,
             destination_url=destination_url,
             headlines=headlines,
             bodies=bodies,
@@ -311,6 +315,7 @@ def _build_ad_config(
     name: Optional[str],
     page_id: Optional[str],
     instagram_actor_id: Optional[str],
+    instagram_user_id: Optional[str],
     destination_url: Optional[str],
     headlines: Optional[str],
     bodies: Optional[str],
@@ -331,6 +336,7 @@ def _build_ad_config(
         name=name,
         page_id=page_id,
         instagram_actor_id=instagram_actor_id,
+        instagram_user_id=instagram_user_id,
         destination_url=destination_url,
         headlines=_split_csv(headlines),
         bodies=_split_csv(bodies),

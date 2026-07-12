@@ -92,6 +92,7 @@ class AdCreateConfig(BaseModel):
     name: str
     page_id: Optional[str] = None
     instagram_actor_id: Optional[str] = None
+    instagram_user_id: Optional[str] = None
     destination_url: Optional[str] = None
     headlines: List[str] = Field(default_factory=list)
     bodies: List[str] = Field(default_factory=list)
@@ -164,7 +165,9 @@ class AdCreateConfig(BaseModel):
             raise ValueError("Creative payload not required when existing_creative_id is set")
 
         base_story_spec: Dict[str, Any] = {"page_id": self.page_id}
-        if self.instagram_actor_id:
+        if self.instagram_user_id:
+            base_story_spec["instagram_user_id"] = self.instagram_user_id
+        elif self.instagram_actor_id:
             base_story_spec["instagram_actor_id"] = self.instagram_actor_id
 
         if self.uses_asset_feed_spec():
