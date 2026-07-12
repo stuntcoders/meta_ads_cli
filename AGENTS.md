@@ -48,10 +48,30 @@ For each milestone:
 - Pytest with mocks for non-live tests
 - Keep architecture thin/readable (`sdk.py` + command modules)
 
+## Named environment operations (required)
+
+`meta-cli` uses persistent named environments so operators do not accidentally act on the wrong Meta account.
+
+- The expected operator profile slugs are:
+  - `hoca-rehberi`
+  - `mentor-maam`
+  - `privatni-casovi`
+- Profiles are stored outside the repository in `$META_CLI_ENVIRONMENTS_FILE`, `$XDG_CONFIG_HOME/meta-ads-cli/environments.yaml`, or `~/.config/meta-ads-cli/environments.yaml` (in that precedence order).
+- Never add the real environment store, access tokens, or app secrets to Git, fixtures, documentation, command output, logs, or commits. Never print/cat the raw store. Keep it owner-only (`0600`).
+- Do not assume which profile is active. Selection persists across invocations. Before any live Meta operation, run `meta-cli environments current` and verify the target account. Use `meta-cli environments use <name>` only when the user explicitly asks to switch environments.
+- Do not silently switch to another profile for validation and switch back afterward. Use a safe explicit auth override where appropriate, or ask the user to authorize the switch.
+- Standard commands must continue to require a selected named environment. Do not restore ambient `META_*` credentials as an implicit fallback. Explicit legacy `--config`/`--auth-config` files remain deliberate overrides.
+- A complete profile requires `access_token`, `app_id`, `app_secret`, `ad_account_id`, and `api_version`. Preserve optional `system_user_id`, `facebook_page_id`, and `instagram_user_id`; Page and Instagram IDs provide ad-creative identity defaults.
+- Preserve atomic environment-store writes, secret redaction, profile validation, and `0600` permissions. Never overwrite the store in a way that drops unrelated profiles or changes `active_profile` unintentionally.
+- The current recommended Meta Marketing API/SDK line is `v25.0` / `facebook-business>=25.0.2`. Verify official Meta support before changing it, and update dependencies, lock files, tests, README, and setup docs together.
+- Environment management belongs in first-class CLI commands (`meta-cli environments ...`), not recurring ad-hoc scripts.
+
 ## Testing guidance
 
 - Prefer mocked unit tests for CLI/service behavior.
 - Live tests stay opt-in under `tests/integration` with `LIVE_META_TESTS=1`.
+- Tests must set `META_CLI_ENVIRONMENTS_FILE` to a temporary path so they never read, select, rewrite, or leak the operator's real profiles.
+- Never use real credentials in unit tests. Live credential tests must remain explicit, read-only, and isolated from the persistent active-profile selection where practical.
 - For workflow/script changes, add/update tests where practical.
 
 ## Packaging and distribution
@@ -75,6 +95,8 @@ For each milestone:
 - Do not require secrets to run tests.
 - Do not remove existing safety checks without explicit request.
 - Do not perform destructive external actions unless clearly requested.
+- Treat campaign/ad set/ad creation, activation, budget changes, targeting replacement, and creative replacement as live account mutations. Confirm the active environment and preserve confirmation/`--dry-run` protections before executing them.
+- Authentication checks, environment inspection, and read-only listings/reports may be used for validation, but must not change the persistent environment unless explicitly requested.
 
 ## Definition of done for changes
 
