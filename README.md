@@ -125,40 +125,58 @@ python3 -m pip install -e ".[dev]"
 
 ### Set up a named environment
 
-The recommended workflow stores one or more named profiles in a private YAML file. The path is:
+The recommended workflow stores all named profiles in one private YAML file. The path is:
 
 - `$META_CLI_ENVIRONMENTS_FILE` when set (recommended for tests and automation)
 - `$XDG_CONFIG_HOME/meta-ads-cli/environments.yaml` when `XDG_CONFIG_HOME` is set
 - `~/.config/meta-ads-cli/environments.yaml` otherwise
 
-Create the parent directory and file, then protect the file because it contains access tokens and
-app secrets:
+The default expands to an absolute path such as:
+
+- macOS: `/Users/<your-username>/.config/meta-ads-cli/environments.yaml`
+- Linux: `/home/<your-username>/.config/meta-ads-cli/environments.yaml`
+
+Create the parent directory and a multi-environment file, then protect it because it contains access
+tokens and app secrets:
 
 ```bash
 mkdir -p "$HOME/.config/meta-ads-cli"
 cat > "$HOME/.config/meta-ads-cli/environments.yaml" <<'YAML'
+# Keep null during initial setup. Select with `meta-cli environments use <name>`.
 active_profile: null
 profiles:
-  sandbox:
-    display_name: Sandbox account
-    access_token: "replace-with-access-token"
-    app_id: "replace-with-app-id"
-    app_secret: "replace-with-app-secret"
-    ad_account_id: "act_1234567890"
+  brand-a:
+    display_name: Brand A
+    access_token: "replace-with-brand-a-system-user-token"
+    app_id: "replace-with-brand-a-app-id"
+    app_secret: "replace-with-brand-a-app-secret"
+    ad_account_id: "act_111111111111111"
     api_version: "v25.0"
-    # Optional defaults/metadata:
-    # system_user_id: "1234567890"
-    # facebook_page_id: "1234567890"
-    # instagram_user_id: "1234567890"
+    # Optional metadata and ads-create identity defaults:
+    system_user_id: "replace-with-brand-a-system-user-id"
+    facebook_page_id: "replace-with-brand-a-page-id"
+    instagram_user_id: "replace-with-brand-a-instagram-user-id"
+
+  brand-b:
+    display_name: Brand B
+    access_token: "replace-with-brand-b-system-user-token"
+    app_id: "replace-with-brand-b-app-id"
+    app_secret: "replace-with-brand-b-app-secret"
+    ad_account_id: "act_222222222222222"
+    api_version: "v25.0"
+    system_user_id: "replace-with-brand-b-system-user-id"
+    facebook_page_id: "replace-with-brand-b-page-id"
+    instagram_user_id: "replace-with-brand-b-instagram-user-id"
 YAML
 chmod 600 "$HOME/.config/meta-ads-cli/environments.yaml"
 ```
 
-The top-level keys are `active_profile` and `profiles`; profile names are the keys beneath
-`profiles`. Lowercase profile keys shown above are canonical. Numeric `ad_account_id` values are
-accepted and normalized to `act_...`; `api_version` defaults to `v25.0` if omitted. Do not commit
-this file or expose it in logs. Selection writes are atomic where supported and enforce owner-only
-(`0600`) file permissions.
+Add one entry beneath `profiles` for every independently authenticated Meta environment. Each
+profile has its own app, system-user token, app secret, and ad account. The top-level keys are
+`active_profile` and `profiles`; profile names are the keys beneath `profiles`. Lowercase profile
+keys shown above are canonical. Numeric `ad_account_id` values are accepted and normalized to
+`act_...`; `api_version` defaults to `v25.0` if omitted. Do not commit this file or expose it in
+logs. Selection writes are atomic where supported and enforce owner-only (`0600`) file permissions.
 
 A new store **does not automatically select any profile**, even when it contains only one. Inspect
 and select one explicitly:
@@ -166,7 +184,7 @@ and select one explicitly:
 ```bash
 meta-cli environments list
 meta-cli environments current        # exits with guidance until a profile is selected
-meta-cli environments use sandbox
+meta-cli environments use brand-a
 meta-cli environments current
 meta-cli auth test
 ```
