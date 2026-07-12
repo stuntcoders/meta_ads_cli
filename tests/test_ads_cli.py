@@ -2,11 +2,33 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from typer.testing import CliRunner
 
 from meta_cli.app import app
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def isolate_environments_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(tmp_path / "environments.yaml"))
+
+
+def write_active_environment(path, *, page_id="profile_page", instagram_id="profile_ig"):
+    path.write_text(
+        f"""
+active_profile: sandbox
+profiles:
+  sandbox:
+    access_token: test-token
+    app_id: test-app
+    app_secret: test-secret
+    ad_account_id: 123456
+    facebook_page_id: {page_id}
+    instagram_user_id: {instagram_id}
+""".strip()
+    )
 
 
 class FakeAdsClient:
@@ -161,6 +183,162 @@ def test_ads_create_dry_run_multi_text(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["uses_asset_feed_spec"] is True
     assert payload["creative_payload"]["object_story_spec"]["instagram_user_id"] == "ig1"
+
+
+def test_ads_create_uses_profile_identity_defaults_and_stays_paused(tmp_path, monkeypatch):
+    environments = tmp_path / "profiles.yaml"
+    write_active_environment(environments)
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
+    fake = FakeAdsClient()
+    monkeypatch.setattr("meta_cli.commands.ads.build_client", lambda *_: fake)
+
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Profile Ad",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-hashes",
+            "image1",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    story = fake.creative_payload["object_story_spec"]
+    assert story["page_id"] == "profile_page"
+    assert story["instagram_user_id"] == "profile_ig"
+    assert fake.ad_payload["status"] == "PAUSED"
+
+
+def test_ads_create_explicit_identity_overrides_profile(tmp_path, monkeypatch):
+    environments = tmp_path / "profiles.yaml"
+    write_active_environment(environments)
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
+
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Explicit Ad",
+            "--page-id",
+            "explicit_page",
+            "--instagram-user-id",
+            "explicit_ig",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-hashes",
+            "image1",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    story = json.loads(result.stdout)["creative_payload"]["object_story_spec"]
+    assert story["page_id"] == "explicit_page"
+    assert story["instagram_user_id"] == "explicit_ig"
+
+
+def test_ads_create_yaml_identity_overrides_profile(tmp_path, monkeypatch):
+    environments = tmp_path / "profiles.yaml"
+    write_active_environment(environments)
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
+    config = tmp_path / "ad.yaml"
+    config.write_text(
+        """
+adset_id: a1
+name: YAML Ad
+page_id: yaml_page
+instagram_actor_id: yaml_actor
+destination_url: https://example.com
+bodies: [Body]
+image_hashes: [image1]
+""".strip()
+    )
+
+    result = runner.invoke(
+        app, ["ads", "create", "--config", str(config), "--dry-run", "--json"]
+    )
+
+    assert result.exit_code == 0
+    story = json.loads(result.stdout)["creative_payload"]["object_story_spec"]
+    assert story["page_id"] == "yaml_page"
+    assert story["instagram_actor_id"] == "yaml_actor"
+    assert "instagram_user_id" not in story
+
+
+def test_ads_create_legacy_auth_override_does_not_use_profile_defaults(tmp_path, monkeypatch):
+    environments = tmp_path / "profiles.yaml"
+    write_active_environment(environments)
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
+
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Legacy Override",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-hashes",
+            "image1",
+            "--auth-config",
+            str(tmp_path / "legacy-auth.yaml"),
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "page_id is required unless existing_creative_id is provided" in json.loads(
+        result.stdout
+    )["error"]
+
+
+def test_ads_create_without_explicit_or_profile_page_keeps_validation_error():
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Missing Page",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-hashes",
+            "image1",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "page_id is required unless existing_creative_id is provided" in json.loads(
+        result.stdout
+    )["error"]
 
 
 def test_ads_create_placement_images_from_json_flags_dry_run():

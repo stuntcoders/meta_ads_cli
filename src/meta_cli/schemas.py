@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -254,7 +255,13 @@ class AdCreateConfig(BaseModel):
         }
 
 
-def load_yaml_model(path: str, model_class: Any) -> Any:
+def load_yaml_model(
+    path: str,
+    model_class: Any,
+    defaults: Mapping[str, Any]
+    | Callable[[dict[str, Any]], Mapping[str, Any]]
+    | None = None,
+) -> Any:
     file_path = Path(path)
     if not file_path.exists():
         raise ConfigError(f"Config file not found: {path}")
@@ -264,6 +271,9 @@ def load_yaml_model(path: str, model_class: Any) -> Any:
         raise ConfigError(f"Invalid YAML in {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ConfigError(f"Config file must contain a mapping: {path}")
+    if defaults is not None:
+        resolved_defaults = defaults(data) if callable(defaults) else defaults
+        data = {**resolved_defaults, **data}
     try:
         return model_class.model_validate(data)
     except ValidationError as exc:

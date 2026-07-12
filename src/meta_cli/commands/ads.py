@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 import typer
 
 from meta_cli.cli_utils import build_client, handle_cli_error, require_confirmation
+from meta_cli.environments import EnvironmentStore
 from meta_cli.exceptions import APIError, ConfigError
 from meta_cli.output import emit, print_table
 from meta_cli.schemas import AdCreateConfig, load_yaml_model
@@ -193,6 +194,7 @@ def create_ad(
             call_to_action_type=call_to_action_type,
             status=status,
             existing_creative_id=existing_creative_id,
+            auth_config=auth_config,
         )
 
         creative_payload = None
@@ -327,16 +329,38 @@ def _build_ad_config(
     call_to_action_type: str,
     status: str,
     existing_creative_id: Optional[str],
+    auth_config: Optional[str],
 ) -> AdCreateConfig:
     if config:
-        return load_yaml_model(config, AdCreateConfig)
+        return load_yaml_model(
+            config,
+            AdCreateConfig,
+            defaults=lambda data: _profile_ad_identity_defaults(
+                auth_config=auth_config,
+                page_id=data.get("page_id"),
+                instagram_actor_id=data.get("instagram_actor_id"),
+                instagram_user_id=data.get("instagram_user_id"),
+                existing_creative_id=data.get("existing_creative_id"),
+            ),
+        )
 
-    return AdCreateConfig(
-        adset_id=adset_id,
-        name=name,
+    identity_defaults = _profile_ad_identity_defaults(
+        auth_config=auth_config,
         page_id=page_id,
         instagram_actor_id=instagram_actor_id,
         instagram_user_id=instagram_user_id,
+        existing_creative_id=existing_creative_id,
+    )
+    return AdCreateConfig(
+        adset_id=adset_id,
+        name=name,
+        page_id=page_id if page_id is not None else identity_defaults.get("page_id"),
+        instagram_actor_id=instagram_actor_id,
+        instagram_user_id=(
+            instagram_user_id
+            if instagram_user_id is not None
+            else identity_defaults.get("instagram_user_id")
+        ),
         destination_url=destination_url,
         headlines=_split_csv(headlines),
         bodies=_split_csv(bodies),
@@ -351,6 +375,34 @@ def _build_ad_config(
         status=status,
         existing_creative_id=existing_creative_id,
     )
+
+
+def _profile_ad_identity_defaults(
+    *,
+    auth_config: Optional[str],
+    page_id: Any,
+    instagram_actor_id: Any,
+    instagram_user_id: Any,
+    existing_creative_id: Any,
+) -> dict[str, str]:
+    """Return missing ad identity values from the selected named environment."""
+    if auth_config is not None or existing_creative_id:
+        return {}
+    needs_page = page_id is None
+    needs_instagram = instagram_actor_id is None and instagram_user_id is None
+    if not needs_page and not needs_instagram:
+        return {}
+
+    profile = EnvironmentStore().get_active_profile()
+    if profile is None:
+        return {}
+
+    defaults: dict[str, str] = {}
+    if needs_page and profile.facebook_page_id:
+        defaults["page_id"] = profile.facebook_page_id
+    if needs_instagram and profile.instagram_user_id:
+        defaults["instagram_user_id"] = profile.instagram_user_id
+    return defaults
 
 
 def _change_status(
