@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from typer.testing import CliRunner
 
 from meta_cli.app import app
@@ -38,6 +39,14 @@ SECRETS = (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolate_environment_store(tmp_path, monkeypatch):
+    """Prevent every CLI test in this module from consulting the operator's home."""
+    monkeypatch.setenv(
+        "META_CLI_ENVIRONMENTS_FILE", str(tmp_path / "isolated-environments.yaml")
+    )
+
+
 def test_environments_list_shows_only_safe_profile_identity(tmp_path):
     path = tmp_path / "environments.yaml"
     path.write_text(ENVIRONMENTS_YAML)
@@ -61,6 +70,22 @@ def test_environments_list_shows_only_safe_profile_identity(tmp_path):
         "facebook_page_id": "301",
         "instagram_user_id": "401",
     }
+    assert all(secret not in result.stdout for secret in SECRETS)
+
+
+def test_environments_list_human_output_redacts_all_credentials(tmp_path):
+    path = tmp_path / "environments.yaml"
+    path.write_text(ENVIRONMENTS_YAML)
+
+    result = runner.invoke(
+        app,
+        ["environments", "list"],
+        env={"META_CLI_ENVIRONMENTS_FILE": str(path)},
+    )
+
+    assert result.exit_code == 0
+    assert "Production account" in result.stdout
+    assert "act_12345" in result.stdout
     assert all(secret not in result.stdout for secret in SECRETS)
 
 
@@ -111,6 +136,42 @@ def test_environments_current_reports_missing_selection(tmp_path):
     assert payload["ok"] is False
     assert "environments use <name>" in payload["error"]
     assert all(secret not in result.stdout for secret in SECRETS)
+
+
+def test_environments_current_rejects_stale_selection_without_secrets(tmp_path):
+    path = tmp_path / "environments.yaml"
+    path.write_text(
+        ENVIRONMENTS_YAML.replace("active_profile: null", "active_profile: removed")
+    )
+
+    result = runner.invoke(
+        app,
+        ["environments", "current", "--json"],
+        env={"META_CLI_ENVIRONMENTS_FILE": str(path)},
+    )
+
+    assert result.exit_code == 1
+    assert "'removed' no longer exists" in json.loads(result.stdout)["error"]
+    assert all(secret not in result.stdout for secret in SECRETS)
+
+
+def test_environments_malformed_file_failure_does_not_echo_secret(tmp_path):
+    path = tmp_path / "environments.yaml"
+    malformed_secret = "malformed-environment-secret-never-print"
+    path.write_text(f"profiles:\n  broken: [{malformed_secret}\n")
+
+    for arguments in (
+        ["environments", "list"],
+        ["environments", "list", "--json"],
+    ):
+        result = runner.invoke(
+            app,
+            arguments,
+            env={"META_CLI_ENVIRONMENTS_FILE": str(path)},
+        )
+        assert result.exit_code == 1
+        assert "Unable to read environments file" in result.stdout
+        assert malformed_secret not in result.stdout
 
 
 def test_environments_use_rejects_unknown_profile_actionably(tmp_path):

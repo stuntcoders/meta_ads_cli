@@ -276,7 +276,10 @@ def test_malformed_legacy_auth_file_does_not_echo_secret(tmp_path):
     assert malformed_secret not in result.stdout
 
 
-def test_authentication_api_error_redacts_selected_secrets(tmp_path, monkeypatch):
+@pytest.mark.parametrize("json_output", [False, True])
+def test_authentication_api_error_redacts_selected_secrets(
+    tmp_path, monkeypatch, json_output
+):
     path = tmp_path / "environments.yaml"
     _write_selected_profile(path)
     monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(path))
@@ -290,7 +293,10 @@ def test_authentication_api_error_redacts_selected_secrets(tmp_path, monkeypatch
 
     monkeypatch.setattr("meta_cli.commands.auth.MetaSDKClient", FakeClient)
 
-    result = runner.invoke(app, ["auth", "test", "--json"])
+    arguments = ["auth", "test"]
+    if json_output:
+        arguments.append("--json")
+    result = runner.invoke(app, arguments)
 
     assert result.exit_code == 1
     assert "[REDACTED]" in result.stdout

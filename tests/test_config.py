@@ -65,6 +65,10 @@ META_API_VERSION: v21.0
     settings = load_settings(str(config))
 
     assert settings.credentials.access_token == "env-token"
+    assert settings.credentials.app_id == "env-app"
+    assert settings.credentials.app_secret == "env-secret"
+    assert settings.credentials.ad_account_id == "act_123"
+    # Unset compatible values continue to come from the explicit legacy file.
     assert settings.credentials.api_version == "v21.0"
 
 
