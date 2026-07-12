@@ -406,6 +406,24 @@ class MetaSDKClient:
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list all ads: {exc}") from exc
 
+    def search_targeting_locations(
+        self, query: str, countries: List[str] | None = None
+    ) -> List[Dict[str, Any]]:
+        self.initialize()
+        account = self.get_ad_account()
+        params: Dict[str, Any] = {
+            "q": query,
+            "whitelisted_types": ["adgeolocation"],
+        }
+        if countries:
+            params["countries"] = countries
+        try:
+            cursor = account.get_targeting_search(params=params)
+            rows, _ = self._collect_cursor(cursor, auto_paginate=True)
+            return rows
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to search targeting locations for '{query}': {exc}") from exc
+
     def get_account_insights(
         self,
         fields: List[str],

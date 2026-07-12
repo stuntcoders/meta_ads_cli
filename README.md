@@ -11,7 +11,7 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 - Upload image/video assets
 - Create campaigns, ad sets, and ads from YAML or flags
 - Pause/resume campaigns, ad sets, ads
-- Replace ad set targeting from JSON or YAML with confirmation and dry-run support
+- Search Meta targeting locations and replace ad set targeting from JSON or YAML
 - Update an ad to use a different creative
 
 ---
@@ -169,6 +169,16 @@ meta-cli ads list --all --no-paginate --after <cursor> --json
 Human-readable output contains all fetched rows. JSON list output is an envelope with `data` and a
 `paging` object containing the requested cursors, `next_after`, `has_more`, `pages_fetched`, and
 `total_count` when Meta supplies it. This makes a deliberately capped request resumable.
+
+### Targeting discovery
+
+```bash
+meta-cli targeting search-locations --query "Gurugram" --country IN
+meta-cli targeting search-locations --query "Noida" --country IN --json
+```
+
+Location search returns Meta's targeting key, name, type, country, and region so targeting updates can
+use valid platform identifiers instead of guessed city keys.
 
 ### Insights
 

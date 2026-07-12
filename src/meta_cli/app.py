@@ -10,6 +10,7 @@ from meta_cli.commands.creatives import app as creatives_app
 from meta_cli.commands.insights import app as insights_app
 from meta_cli.commands.media import app as media_app
 from meta_cli.commands.report import app as report_app
+from meta_cli.commands.targeting import app as targeting_app
 from meta_cli.logging_utils import configure_logging
 
 app = typer.Typer(help="Meta Ads management CLI")
@@ -21,6 +22,7 @@ app.add_typer(creatives_app, name="creatives")
 app.add_typer(insights_app, name="insights")
 app.add_typer(media_app, name="media")
 app.add_typer(report_app, name="report")
+app.add_typer(targeting_app, name="targeting")
 
 
 @app.callback()
