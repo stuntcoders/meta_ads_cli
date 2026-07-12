@@ -598,6 +598,17 @@ class MetaSDKClient:
             raise APIError(f"Failed to update ad set {adset_id}: {exc}") from exc
         return self.to_dict(result)
 
+    def update_adset_targeting(
+        self, adset_id: str, targeting: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        self.initialize()
+        adset = self.get_adset(adset_id)
+        try:
+            result = adset.api_update(params={"targeting": targeting})
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to update targeting for ad set {adset_id}: {exc}") from exc
+        return self.to_dict(result)
+
     def update_ad_status(self, ad_id: str, status: str) -> Dict[str, Any]:
         self.initialize()
         ad = self.get_ad(ad_id)

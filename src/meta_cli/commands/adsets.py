@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import typer
+import yaml
 
 from meta_cli.cli_utils import build_client, handle_cli_error, require_confirmation
 from meta_cli.exceptions import APIError, ConfigError
@@ -173,6 +175,46 @@ def create_adset(
         handle_cli_error(exc, as_json=json_output)
 
 
+@app.command("update-targeting")
+def update_adset_targeting(
+    adset_id: str,
+    targeting_json: Optional[str] = typer.Option(
+        None, "--targeting-json", help="Complete targeting JSON object"
+    ),
+    targeting_file: Optional[str] = typer.Option(
+        None,
+        "--targeting-file",
+        help="JSON/YAML file containing targeting or an ad set config with a targeting key",
+    ),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate and print payload only"),
+) -> None:
+    try:
+        targeting = _load_targeting_update(targeting_json, targeting_file)
+        require_confirmation(f"Replace targeting for ad set {adset_id}?", yes=yes)
+        if dry_run:
+            emit(
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "adset_id": adset_id,
+                    "targeting": targeting,
+                },
+                as_json=json_output,
+            )
+            return
+        client = build_client(auth_config)
+        result = client.update_adset_targeting(adset_id, targeting)
+        emit(
+            {"ok": True, "adset_id": adset_id, "targeting": targeting, "result": result},
+            as_json=json_output,
+        )
+    except (ConfigError, APIError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
 @app.command("pause")
 def pause_adset(
     adset_id: str,
@@ -234,6 +276,28 @@ def _build_adset_config(
         promoted_object=promoted_object,
         status=status,
     )
+
+
+def _load_targeting_update(
+    targeting_json: Optional[str], targeting_file: Optional[str]
+) -> Dict[str, Any]:
+    if bool(targeting_json) == bool(targeting_file):
+        raise ValueError("Provide exactly one of --targeting-json or --targeting-file")
+
+    if targeting_json:
+        targeting = json.loads(targeting_json)
+    else:
+        path = Path(targeting_file)
+        if not path.exists():
+            raise ConfigError(f"Targeting file not found: {targeting_file}")
+        payload = yaml.safe_load(path.read_text())
+        if not isinstance(payload, dict):
+            raise ValueError("Targeting file must contain a mapping")
+        targeting = payload.get("targeting", payload)
+
+    if not isinstance(targeting, dict) or not targeting:
+        raise ValueError("Targeting must be a non-empty JSON/YAML object")
+    return targeting
 
 
 def _change_status(

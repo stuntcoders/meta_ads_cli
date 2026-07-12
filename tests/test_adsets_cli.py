@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from typer.testing import CliRunner
 
 from meta_cli.app import app
@@ -11,6 +13,7 @@ class FakeAdSetClient:
     def __init__(self):
         self.last_list_kwargs = {}
         self.last_get_adset = None
+        self.last_targeting_update = None
 
     def list_adsets(
         self,
@@ -55,6 +58,10 @@ class FakeAdSetClient:
 
     def update_adset_status(self, adset_id, status):
         return {"id": adset_id, "status": status}
+
+    def update_adset_targeting(self, adset_id, targeting):
+        self.last_targeting_update = {"adset_id": adset_id, "targeting": targeting}
+        return {"id": adset_id}
 
 
 def test_adsets_list_pagination_flags(monkeypatch):
@@ -128,6 +135,55 @@ def test_adsets_create_dry_run_with_flags(monkeypatch):
     )
     assert result.exit_code == 0
     assert '"campaign_id": "123"' in result.stdout
+
+
+def test_adsets_update_targeting_dry_run_json_does_not_build_client(monkeypatch):
+    def fail_build_client(*_args):
+        raise AssertionError("dry-run must not build an SDK client")
+
+    monkeypatch.setattr("meta_cli.commands.adsets.build_client", fail_build_client)
+    targeting = {"age_min": 25, "age_max": 45, "genders": [2]}
+    result = runner.invoke(
+        app,
+        [
+            "adsets",
+            "update-targeting",
+            "a1",
+            "--targeting-json",
+            json.dumps(targeting),
+            "--yes",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["targeting"] == targeting
+
+
+def test_adsets_update_targeting_from_adset_config(monkeypatch, tmp_path):
+    path = tmp_path / "adset.yaml"
+    path.write_text("name: Test\ntargeting:\n  age_min: 25\n  age_max: 45\n  genders: [2]\n")
+    fake = FakeAdSetClient()
+    monkeypatch.setattr("meta_cli.commands.adsets.build_client", lambda *_: fake)
+
+    result = runner.invoke(
+        app,
+        ["adsets", "update-targeting", "a1", "--targeting-file", str(path), "--yes", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert fake.last_targeting_update == {
+        "adset_id": "a1",
+        "targeting": {"age_min": 25, "age_max": 45, "genders": [2]},
+    }
+
+
+def test_adsets_update_targeting_requires_one_source():
+    result = runner.invoke(app, ["adsets", "update-targeting", "a1", "--yes", "--json"])
+
+    assert result.exit_code == 1
+    assert "exactly one" in json.loads(result.stdout)["error"]
 
 
 def test_adsets_pause_dry_run(monkeypatch):

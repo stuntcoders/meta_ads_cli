@@ -11,6 +11,7 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 - Upload image/video assets
 - Create campaigns, ad sets, and ads from YAML or flags
 - Pause/resume campaigns, ad sets, ads
+- Replace ad set targeting from JSON or YAML with confirmation and dry-run support
 - Update an ad to use a different creative
 
 ---
@@ -224,6 +225,7 @@ meta-cli media upload-video ./creative.mp4
 meta-cli campaigns create --config examples/campaign.yaml
 meta-cli campaigns create --name "Traffic Campaign" --objective OUTCOME_TRAFFIC --dry-run --json
 meta-cli adsets create --config examples/adset.yaml
+meta-cli adsets update-targeting <adset_id> --targeting-file examples/adset.yaml --yes
 meta-cli ads create --config examples/ad.yaml
 meta-cli ads create --config examples/ad-placement-images.yaml --dry-run --json
 meta-cli ads update-creative <ad_id> --creative-id <creative_id> --yes
@@ -266,6 +268,12 @@ without `image_assets`. Blank or duplicate asset labels and rules that reference
 are rejected. `image_hashes` and `image_assets` are mutually exclusive. Existing
 `image_hashes` behavior is unchanged, including the single-image story payload and multi-image
 asset-feed payload.
+
+`adsets update-targeting` replaces the complete targeting object, so first export or retain the
+existing targeting and include every constraint and placement that must remain. Supply exactly one
+of `--targeting-json` or `--targeting-file`; a JSON/YAML file may contain the targeting object
+itself or an ad set config with a top-level `targeting` key. The command requires confirmation
+unless `--yes` is passed and supports `--dry-run`.
 
 ### Status control
 
