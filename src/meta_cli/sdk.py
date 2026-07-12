@@ -529,6 +529,15 @@ class MetaSDKClient:
             raise APIError(f"Failed to upload video: {exc}") from exc
         return self.to_dict(result)
 
+    def create_campaign(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self.initialize()
+        account = self.get_ad_account()
+        try:
+            result = account.create_campaign(params=payload)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to create campaign: {exc}") from exc
+        return self.to_dict(result)
+
     def create_adset(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         self.initialize()
         account = self.get_ad_account()

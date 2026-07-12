@@ -44,6 +44,10 @@ class FakeAdSetClient:
             "name": "A1",
             "status": "PAUSED",
             "campaign_id": "123",
+            "promoted_object": {
+                "pixel_id": "pixel_456",
+                "custom_event_type": "COMPLETE_REGISTRATION",
+            },
         }
 
     def create_adset(self, payload):
@@ -83,9 +87,24 @@ def test_adsets_get_json(monkeypatch):
 
     assert result.exit_code == 0
     assert '"id": "a1"' in result.stdout
+    assert '"promoted_object"' in result.stdout
+    assert '"pixel_id": "pixel_456"' in result.stdout
+    assert '"custom_event_type": "COMPLETE_REGISTRATION"' in result.stdout
     assert fake.last_get_adset is not None
     assert fake.last_get_adset["adset_id"] == "a1"
     assert "targeting" in fake.last_get_adset["fields"]
+    assert "promoted_object" in fake.last_get_adset["fields"]
+
+
+def test_adsets_get_normal_output_includes_promoted_object(monkeypatch):
+    fake = FakeAdSetClient()
+    monkeypatch.setattr("meta_cli.commands.adsets.build_client", lambda *_: fake)
+    result = runner.invoke(app, ["adsets", "get", "a1"])
+
+    assert result.exit_code == 0
+    assert "promoted_object" in result.stdout
+    assert "pixel_456" in result.stdout
+    assert "COMPLETE_REGISTRATION" in result.stdout
 
 
 def test_adsets_create_dry_run_with_flags(monkeypatch):

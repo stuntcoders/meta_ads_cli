@@ -1,0 +1,38 @@
+adset_id: "120000000000002"
+name: "MentorMaam - Placement Static Images"
+page_id: "120000000000003"
+instagram_actor_id: "17840000000000000"
+destination_url: "https://example.com/find-a-tutor"
+headlines:
+  - "Find the right tutor"
+bodies:
+  - "Connect with a trusted tutor for personalized learning support."
+descriptions:
+  - "Explore tutors near you"
+image_assets:
+  - hash: "portrait_4x5_image_hash"
+    label: "feed_4x5"
+  - hash: "square_1x1_image_hash"
+    label: "square_1x1"
+  - hash: "vertical_9x16_image_hash"
+    label: "stories_reels_9x16"
+asset_customization_rules:
+  - customization_spec:
+      publisher_platforms: ["facebook", "instagram"]
+      facebook_positions: ["feed"]
+      instagram_positions: ["stream"]
+    image_label: "feed_4x5"
+    priority: 1
+  - customization_spec:
+      publisher_platforms: ["facebook"]
+      facebook_positions: ["right_hand_column", "marketplace"]
+    image_label: "square_1x1"
+    priority: 2
+  - customization_spec:
+      publisher_platforms: ["facebook", "instagram"]
+      facebook_positions: ["story", "facebook_reels"]
+      instagram_positions: ["story", "reels"]
+    image_label: "stories_reels_9x16"
+    priority: 3
+call_to_action_type: "LEARN_MORE"
+status: "PAUSED"

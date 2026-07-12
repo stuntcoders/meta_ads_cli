@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import List, Optional
+import json
+from typing import Any, List, Optional
 
 import typer
 
@@ -148,6 +149,16 @@ def create_ad(
     image_hashes: Optional[str] = typer.Option(
         None, "--image-hashes", help="Comma-separated image hashes"
     ),
+    image_assets_json: Optional[str] = typer.Option(
+        None,
+        "--image-assets-json",
+        help='JSON array of placement image assets, e.g. [{"hash":"...","label":"feed_4x5"}]',
+    ),
+    asset_customization_rules_json: Optional[str] = typer.Option(
+        None,
+        "--asset-customization-rules-json",
+        help="JSON array of placement customization rules",
+    ),
     video_id: Optional[str] = typer.Option(None, "--video-id", help="Uploaded video ID"),
     call_to_action_type: str = typer.Option(
         "LEARN_MORE", "--call-to-action", help="Call to action type"
@@ -172,6 +183,8 @@ def create_ad(
             bodies=bodies,
             descriptions=descriptions,
             image_hashes=image_hashes,
+            image_assets_json=image_assets_json,
+            asset_customization_rules_json=asset_customization_rules_json,
             video_id=video_id,
             call_to_action_type=call_to_action_type,
             status=status,
@@ -215,7 +228,7 @@ def create_ad(
             },
             as_json=json_output,
         )
-    except (ConfigError, APIError, ValueError) as exc:
+    except (ConfigError, APIError, ValueError, json.JSONDecodeError) as exc:
         handle_cli_error(exc, as_json=json_output)
 
 
@@ -283,6 +296,15 @@ def _split_csv(value: Optional[str]) -> List[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
+def _parse_json_list(value: Optional[str], flag_name: str) -> List[Any]:
+    if not value:
+        return []
+    parsed = json.loads(value)
+    if not isinstance(parsed, list):
+        raise ValueError(f"{flag_name} must be a JSON array")
+    return parsed
+
+
 def _build_ad_config(
     config: Optional[str],
     adset_id: Optional[str],
@@ -294,6 +316,8 @@ def _build_ad_config(
     bodies: Optional[str],
     descriptions: Optional[str],
     image_hashes: Optional[str],
+    image_assets_json: Optional[str],
+    asset_customization_rules_json: Optional[str],
     video_id: Optional[str],
     call_to_action_type: str,
     status: str,
@@ -312,6 +336,10 @@ def _build_ad_config(
         bodies=_split_csv(bodies),
         descriptions=_split_csv(descriptions),
         image_hashes=_split_csv(image_hashes),
+        image_assets=_parse_json_list(image_assets_json, "--image-assets-json"),
+        asset_customization_rules=_parse_json_list(
+            asset_customization_rules_json, "--asset-customization-rules-json"
+        ),
         video_id=video_id,
         call_to_action_type=call_to_action_type,
         status=status,

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 import typer
 
 from meta_cli.cli_utils import build_client, handle_cli_error, require_confirmation
 from meta_cli.exceptions import APIError, ConfigError
 from meta_cli.output import emit, print_table
+from meta_cli.schemas import CampaignCreateConfig, load_yaml_model
 
 app = typer.Typer(help="Campaign operations")
 
@@ -95,6 +96,51 @@ def get_campaign(
         handle_cli_error(exc, as_json=json_output)
 
 
+@app.command("create")
+def create_campaign(
+    config: Optional[str] = typer.Option(None, "--config", help="Path to campaign YAML config"),
+    name: Optional[str] = typer.Option(None, "--name", help="Campaign name"),
+    objective: Optional[str] = typer.Option(None, "--objective", help="Campaign objective"),
+    buying_type: str = typer.Option("AUCTION", "--buying-type", help="Campaign buying type"),
+    special_ad_categories: Optional[str] = typer.Option(
+        None,
+        "--special-ad-categories",
+        help="Comma-separated special ad categories",
+    ),
+    daily_budget: Optional[int] = typer.Option(
+        None, "--daily-budget", help="Daily budget in minor units"
+    ),
+    lifetime_budget: Optional[int] = typer.Option(
+        None, "--lifetime-budget", help="Lifetime budget in minor units"
+    ),
+    status: str = typer.Option("PAUSED", "--status", help="Campaign status"),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate and print payload only"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    try:
+        campaign_config = _build_campaign_config(
+            config_path=config,
+            name=name,
+            objective=objective,
+            buying_type=buying_type,
+            special_ad_categories=special_ad_categories,
+            daily_budget=daily_budget,
+            lifetime_budget=lifetime_budget,
+            status=status,
+        )
+        payload = campaign_config.to_payload()
+        if dry_run:
+            emit({"ok": True, "dry_run": True, "payload": payload}, as_json=json_output)
+            return
+
+        client = build_client(auth_config)
+        result = client.create_campaign(payload)
+        emit({"ok": True, "campaign": result, "payload": payload}, as_json=json_output)
+    except (ConfigError, APIError, ValueError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
 @app.command("pause")
 def pause_campaign(
     campaign_id: str,
@@ -115,6 +161,36 @@ def resume_campaign(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show action without updating"),
 ) -> None:
     _change_status(campaign_id, "ACTIVE", auth_config, yes, json_output, dry_run)
+
+
+def _split_csv(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _build_campaign_config(
+    config_path: Optional[str],
+    name: Optional[str],
+    objective: Optional[str],
+    buying_type: str,
+    special_ad_categories: Optional[str],
+    daily_budget: Optional[int],
+    lifetime_budget: Optional[int],
+    status: str,
+) -> CampaignCreateConfig:
+    if config_path:
+        return load_yaml_model(config_path, CampaignCreateConfig)
+
+    return CampaignCreateConfig(
+        name=name,
+        objective=objective,
+        buying_type=buying_type,
+        special_ad_categories=_split_csv(special_ad_categories),
+        daily_budget=daily_budget,
+        lifetime_budget=lifetime_budget,
+        status=status,
+    )
 
 
 def _change_status(

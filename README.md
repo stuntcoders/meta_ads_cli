@@ -9,7 +9,7 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 - Fetch ad insights/performance metrics
 - Save read-only account snapshots with recurring period insights
 - Upload image/video assets
-- Create ad sets and ads from YAML or flags
+- Create campaigns, ad sets, and ads from YAML or flags
 - Pause/resume campaigns, ad sets, ads
 - Update an ad to use a different creative
 
@@ -149,6 +149,9 @@ meta-cli ads list --all
 meta-cli ads get <ad_id>
 ```
 
+`adsets get` details include the `promoted_object`, including pixel and conversion-event
+optimization data returned by Meta, in both normal and JSON output.
+
 List commands follow every Meta API page by default, so `--limit` controls rows per request rather
 than the total rows returned. Use `--max-pages <n>` to cap requests or `--no-paginate` to fetch one
 page. To resume from a cursor, pass either `--after <cursor>` or `--before <cursor>` (not both):
@@ -214,10 +217,45 @@ meta-cli media upload-video ./creative.mp4
 ### Create flows
 
 ```bash
+meta-cli campaigns create --config examples/campaign.yaml
+meta-cli campaigns create --name "Traffic Campaign" --objective OUTCOME_TRAFFIC --dry-run --json
 meta-cli adsets create --config examples/adset.yaml
 meta-cli ads create --config examples/ad.yaml
+meta-cli ads create --config examples/ad-placement-images.yaml --dry-run --json
 meta-cli ads update-creative <ad_id> --creative-id <creative_id> --yes
 ```
+
+Campaign creation requires `name` and `objective`. It accepts optional campaign-level
+`daily_budget` or `lifetime_budget`, and `special_ad_categories` as a YAML list or a comma-separated
+`--special-ad-categories` flag. `buying_type`, `special_ad_categories`, and `status` default to
+`AUCTION`, `[]`, and `PAUSED`, respectively. Use `--dry-run` to validate and inspect the exact
+payload without loading credentials or making a Meta SDK request; add `--json` for machine-readable
+output.
+
+For placement-specific static creative, `ads create` accepts `image_assets` and
+`asset_customization_rules` in YAML. Each image asset has a Meta image `hash` and a unique,
+nonblank `label`; each rule has a Meta `customization_spec`, an `image_label` referencing one of
+those labels, and an optional `priority`. The generated `asset_feed_spec` adds the label as an
+`adlabels` entry on each image and emits the rules with Meta's `{\"name\": ...}` image-label
+shape. See `examples/ad-placement-images.yaml` for dedicated 4:5 feed, 1:1, and 9:16
+Stories/Reels assets.
+
+The equivalent CLI flags accept JSON arrays:
+
+```bash
+meta-cli ads create \
+  --adset-id "$ADSET_ID" --name "Placement images" --page-id "$PAGE_ID" \
+  --destination-url "https://example.com" --bodies "Find the right tutor" \
+  --image-assets-json '[{"hash":"hash_4x5","label":"feed_4x5"},{"hash":"hash_1x1","label":"square_1x1"},{"hash":"hash_9x16","label":"stories_9x16"}]' \
+  --asset-customization-rules-json '[{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["feed"],"instagram_positions":["stream"]},"image_label":"feed_4x5","priority":1}]' \
+  --dry-run --json
+```
+
+`image_assets` requires at least one customization rule, and customization rules cannot be used
+without `image_assets`. Blank or duplicate asset labels and rules that reference unknown labels
+are rejected. `image_hashes` and `image_assets` are mutually exclusive. Existing
+`image_hashes` behavior is unchanged, including the single-image story payload and multi-image
+asset-feed payload.
 
 ### Status control
 
@@ -234,19 +272,21 @@ meta-cli ads resume <ad_id>
 
 ## YAML examples
 
+- `examples/campaign.yaml`
 - `examples/adset.yaml`
 - `examples/ad.yaml`
+- `examples/ad-placement-images.yaml`
 
 Use returned media IDs in ad config:
 
-- image upload → `image_hashes`
+- image upload → `image_hashes`, or `image_assets[].hash` for placement-specific images
 - video upload → `video_id`
 
 ---
 
 ## Safety notes
 
-- New ad sets/ads default to `PAUSED`
+- New campaigns, ad sets, and ads default to `PAUSED`
 - Use `--dry-run` before real create/update operations
 - Pause/resume requires confirmation unless `--yes` is passed
 - Validate auth (`meta-cli auth test`) before operations

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from typer.testing import CliRunner
 
 from meta_cli.app import app
@@ -155,6 +157,126 @@ def test_ads_create_dry_run_multi_text(monkeypatch):
     )
     assert result.exit_code == 0
     assert '"uses_asset_feed_spec": true' in result.stdout.lower()
+
+
+def test_ads_create_placement_images_from_json_flags_dry_run():
+    image_assets = [
+        {"hash": "portrait", "label": "feed_4x5"},
+        {"hash": "square", "label": "feed_1x1"},
+        {"hash": "story", "label": "story_9x16"},
+    ]
+    rules = [
+        {
+            "customization_spec": {
+                "publisher_platforms": ["facebook", "instagram"],
+                "facebook_positions": ["feed"],
+                "instagram_positions": ["stream"],
+            },
+            "image_label": "feed_4x5",
+            "priority": 1,
+        },
+        {
+            "customization_spec": {
+                "publisher_platforms": ["facebook", "instagram"],
+                "facebook_positions": ["story"],
+                "instagram_positions": ["story"],
+            },
+            "image_label": "story_9x16",
+            "priority": 2,
+        },
+    ]
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Placement Ad",
+            "--page-id",
+            "p1",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-assets-json",
+            json.dumps(image_assets),
+            "--asset-customization-rules-json",
+            json.dumps(rules),
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.stdout)
+    feed = output["creative_payload"]["asset_feed_spec"]
+    assert feed["images"][0]["adlabels"] == [{"name": "feed_4x5"}]
+    assert feed["asset_customization_rules"][1]["image_label"] == {"name": "story_9x16"}
+
+
+def test_ads_create_placement_yaml_matches_json_structure(tmp_path):
+    path = tmp_path / "placement-ad.yaml"
+    path.write_text(
+        """
+adset_id: a1
+name: Placement Ad
+page_id: p1
+destination_url: https://example.com
+bodies: [Body]
+image_assets:
+  - {hash: portrait, label: feed_4x5}
+  - {hash: square, label: feed_1x1}
+  - {hash: story, label: story_9x16}
+asset_customization_rules:
+  - customization_spec:
+      publisher_platforms: [facebook, instagram]
+      facebook_positions: [feed]
+      instagram_positions: [stream]
+    image_label: feed_4x5
+    priority: 1
+""".strip()
+    )
+
+    result = runner.invoke(
+        app, ["ads", "create", "--config", str(path), "--dry-run", "--json"]
+    )
+
+    assert result.exit_code == 0
+    feed = json.loads(result.stdout)["creative_payload"]["asset_feed_spec"]
+    assert [image["hash"] for image in feed["images"]] == ["portrait", "square", "story"]
+    assert feed["asset_customization_rules"][0]["priority"] == 1
+
+
+def test_ads_create_rejects_mixed_legacy_and_placement_images():
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Ad",
+            "--page-id",
+            "p1",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-hashes",
+            "legacy",
+            "--image-assets-json",
+            '[{"hash":"portrait","label":"feed"}]',
+            "--asset-customization-rules-json",
+            '[{"customization_spec":{"publisher_platforms":["facebook"]},"image_label":"feed"}]',
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "either image_hashes or image_assets" in result.stdout
 
 
 def test_ads_create_non_dry_run_calls_creative_and_ad(monkeypatch):

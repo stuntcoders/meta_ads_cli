@@ -32,6 +32,7 @@ ADSET_DETAIL_FIELDS = [
     "campaign_id",
     "optimization_goal",
     "billing_event",
+    "promoted_object",
     "bid_strategy",
     "bid_amount",
     "daily_budget",

@@ -9,6 +9,30 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from meta_cli.exceptions import ConfigError
 
 
+class CampaignCreateConfig(BaseModel):
+    name: str
+    objective: str
+    buying_type: str = "AUCTION"
+    special_ad_categories: List[str] = Field(default_factory=list)
+    daily_budget: Optional[int] = None
+    lifetime_budget: Optional[int] = None
+    status: str = "PAUSED"
+
+    @field_validator("special_ad_categories", mode="before")
+    @classmethod
+    def normalize_special_ad_categories(cls, value: Any) -> List[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item).strip()]
+        raise ValueError("Expected a string or list")
+
+    def to_payload(self) -> Dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
 class AdSetCreateConfig(BaseModel):
     campaign_id: str
     name: str
@@ -35,6 +59,33 @@ class AdSetCreateConfig(BaseModel):
         return payload
 
 
+class ImageAsset(BaseModel):
+    hash: str
+    label: str
+
+    @field_validator("label")
+    @classmethod
+    def validate_label(cls, value: str) -> str:
+        label = value.strip()
+        if not label:
+            raise ValueError("Image asset label must not be blank")
+        return label
+
+
+class AssetCustomizationRule(BaseModel):
+    customization_spec: Dict[str, Any]
+    image_label: str
+    priority: Optional[int] = None
+
+    @field_validator("image_label")
+    @classmethod
+    def validate_image_label(cls, value: str) -> str:
+        label = value.strip()
+        if not label:
+            raise ValueError("Customization rule image_label must not be blank")
+        return label
+
+
 class AdCreateConfig(BaseModel):
     adset_id: str
     name: str
@@ -45,6 +96,8 @@ class AdCreateConfig(BaseModel):
     bodies: List[str] = Field(default_factory=list)
     descriptions: List[str] = Field(default_factory=list)
     image_hashes: List[str] = Field(default_factory=list)
+    image_assets: List[ImageAsset] = Field(default_factory=list)
+    asset_customization_rules: List[AssetCustomizationRule] = Field(default_factory=list)
     video_id: Optional[str] = None
     call_to_action_type: Optional[str] = "LEARN_MORE"
     status: str = "PAUSED"
@@ -63,18 +116,37 @@ class AdCreateConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_payload_requirements(self) -> "AdCreateConfig":
+        if self.image_hashes and self.image_assets:
+            raise ValueError("Provide either image_hashes or image_assets, not both")
+        if self.asset_customization_rules and not self.image_assets:
+            raise ValueError("image_assets is required when asset_customization_rules is provided")
+        if self.image_assets and not self.asset_customization_rules:
+            raise ValueError("At least one asset_customization_rule is required with image_assets")
+
+        labels = [asset.label for asset in self.image_assets]
+        if len(labels) != len(set(labels)):
+            raise ValueError("Image asset labels must be unique")
+        unknown_labels = {
+            rule.image_label for rule in self.asset_customization_rules if rule.image_label not in labels
+        }
+        if unknown_labels:
+            names = ", ".join(sorted(unknown_labels))
+            raise ValueError(f"Customization rule image_label references unknown label(s): {names}")
+
         if self.existing_creative_id:
             return self
         if self.image_hashes and self.video_id:
             raise ValueError("Provide either image_hashes or video_id, not both")
+        if self.image_assets and self.video_id:
+            raise ValueError("Provide either image_assets or video_id, not both")
         if not self.page_id:
             raise ValueError("page_id is required unless existing_creative_id is provided")
         if not self.bodies:
             raise ValueError("At least one body text is required")
         if not self.destination_url:
             raise ValueError("destination_url is required")
-        if not self.image_hashes and not self.video_id:
-            raise ValueError("Provide image_hashes or video_id")
+        if not self.image_hashes and not self.image_assets and not self.video_id:
+            raise ValueError("Provide image_hashes, image_assets, or video_id")
         return self
 
     def uses_asset_feed_spec(self) -> bool:
@@ -83,6 +155,7 @@ class AdCreateConfig(BaseModel):
             or len(self.bodies) > 1
             or len(self.descriptions) > 1
             or len(self.image_hashes) > 1
+            or bool(self.image_assets)
         )
 
     def build_creative_payload(self) -> Dict[str, Any]:
@@ -103,6 +176,19 @@ class AdCreateConfig(BaseModel):
                 asset_feed_spec["descriptions"] = [{"text": text} for text in self.descriptions]
             if self.image_hashes:
                 asset_feed_spec["images"] = [{"hash": image_hash} for image_hash in self.image_hashes]
+                asset_feed_spec["ad_formats"] = ["SINGLE_IMAGE"]
+            if self.image_assets:
+                asset_feed_spec["images"] = [
+                    {"hash": asset.hash, "adlabels": [{"name": asset.label}]}
+                    for asset in self.image_assets
+                ]
+                asset_feed_spec["asset_customization_rules"] = [
+                    {
+                        **rule.model_dump(exclude={"image_label"}, exclude_none=True),
+                        "image_label": {"name": rule.image_label},
+                    }
+                    for rule in self.asset_customization_rules
+                ]
                 asset_feed_spec["ad_formats"] = ["SINGLE_IMAGE"]
             if self.video_id:
                 asset_feed_spec["videos"] = [{"video_id": self.video_id}]
