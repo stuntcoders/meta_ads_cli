@@ -413,7 +413,7 @@ class MetaSDKClient:
         account = self.get_ad_account()
         params: Dict[str, Any] = {
             "q": query,
-            "whitelisted_types": ["adgeolocation"],
+            "whitelisted_types": ["geo_locations"],
         }
         if countries:
             params["countries"] = countries
