@@ -43,7 +43,7 @@ profiles:
     assert settings.active_environment == "sandbox"
     assert settings.credentials.access_token == "selected-token"
     assert settings.credentials.ad_account_id == "act_123456"
-    assert settings.credentials.api_version == "v20.0"
+    assert settings.credentials.api_version == "v25.0"
 
 
 def test_env_overrides_file(tmp_path, monkeypatch):

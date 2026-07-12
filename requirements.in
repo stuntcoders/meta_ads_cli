@@ -2,4 +2,4 @@ typer
 rich
 pydantic
 PyYAML
-facebook-business
+facebook-business>=25.0.2

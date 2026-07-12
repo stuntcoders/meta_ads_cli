@@ -7,7 +7,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from meta_cli.environments import EnvironmentStore
+from meta_cli.environments import DEFAULT_API_VERSION, EnvironmentStore
 from meta_cli.exceptions import ConfigError
 
 
@@ -16,7 +16,7 @@ class MetaCredentials(BaseModel):
     app_id: str = Field(alias="META_APP_ID")
     app_secret: str = Field(alias="META_APP_SECRET", repr=False)
     ad_account_id: str = Field(alias="META_AD_ACCOUNT_ID")
-    api_version: str = Field(default="v20.0", alias="META_API_VERSION")
+    api_version: str = Field(default=DEFAULT_API_VERSION, alias="META_API_VERSION")
 
     @field_validator("ad_account_id", mode="before")
     @classmethod
