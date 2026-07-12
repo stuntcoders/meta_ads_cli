@@ -126,6 +126,7 @@ def test_campaign_create_dry_run_flags_is_json_and_does_not_build_client(monkeyp
             "EMPLOYMENT,HOUSING",
             "--daily-budget",
             "1000",
+            "--no-adset-budget-sharing",
             "--dry-run",
             "--json",
         ],
@@ -140,6 +141,7 @@ def test_campaign_create_dry_run_flags_is_json_and_does_not_build_client(monkeyp
         "buying_type": "AUCTION",
         "special_ad_categories": ["EMPLOYMENT", "HOUSING"],
         "daily_budget": 1000,
+        "is_adset_budget_sharing_enabled": False,
         "status": "PAUSED",
     }
 

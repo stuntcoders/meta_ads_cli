@@ -27,6 +27,16 @@ def test_campaign_requires_name_and_objective():
         CampaignCreateConfig.model_validate({})
 
 
+def test_campaign_supports_adset_budget_sharing_flag():
+    cfg = CampaignCreateConfig(
+        name="Campaign",
+        objective="OUTCOME_LEADS",
+        is_adset_budget_sharing_enabled=False,
+    )
+
+    assert cfg.to_payload()["is_adset_budget_sharing_enabled"] is False
+
+
 def test_campaign_to_payload_supports_optional_budgets():
     cfg = CampaignCreateConfig(
         name="Campaign",

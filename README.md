@@ -227,10 +227,12 @@ meta-cli ads update-creative <ad_id> --creative-id <creative_id> --yes
 
 Campaign creation requires `name` and `objective`. It accepts optional campaign-level
 `daily_budget` or `lifetime_budget`, and `special_ad_categories` as a YAML list or a comma-separated
-`--special-ad-categories` flag. `buying_type`, `special_ad_categories`, and `status` default to
-`AUCTION`, `[]`, and `PAUSED`, respectively. Use `--dry-run` to validate and inspect the exact
-payload without loading credentials or making a Meta SDK request; add `--json` for machine-readable
-output.
+`--special-ad-categories` flag. For campaigns whose budget lives on ad sets, current Meta API
+versions require `is_adset_budget_sharing_enabled`; set it in YAML or use
+`--adset-budget-sharing` / `--no-adset-budget-sharing`. `buying_type`, `special_ad_categories`, and
+`status` default to `AUCTION`, `[]`, and `PAUSED`, respectively. Use `--dry-run` to validate and
+inspect the exact payload without loading credentials or making a Meta SDK request; add `--json`
+for machine-readable output.
 
 For placement-specific static creative, `ads create` accepts `image_assets` and
 `asset_customization_rules` in YAML. Each image asset has a Meta image `hash` and a unique,

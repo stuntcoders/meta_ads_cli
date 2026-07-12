@@ -2,4 +2,6 @@ name: "MentorMaam - Tutor Acquisition - Delhi NCR"
 objective: "OUTCOME_LEADS"
 buying_type: "AUCTION"
 special_ad_categories: []
+# Required by current Meta API versions when the budget lives on ad sets.
+is_adset_budget_sharing_enabled: false
 status: "PAUSED"

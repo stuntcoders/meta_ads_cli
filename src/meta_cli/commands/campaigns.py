@@ -113,6 +113,11 @@ def create_campaign(
     lifetime_budget: Optional[int] = typer.Option(
         None, "--lifetime-budget", help="Lifetime budget in minor units"
     ),
+    is_adset_budget_sharing_enabled: Optional[bool] = typer.Option(
+        None,
+        "--adset-budget-sharing/--no-adset-budget-sharing",
+        help="Allow ad sets to share part of their budgets when using ad set budgets",
+    ),
     status: str = typer.Option("PAUSED", "--status", help="Campaign status"),
     auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate and print payload only"),
@@ -127,6 +132,7 @@ def create_campaign(
             special_ad_categories=special_ad_categories,
             daily_budget=daily_budget,
             lifetime_budget=lifetime_budget,
+            is_adset_budget_sharing_enabled=is_adset_budget_sharing_enabled,
             status=status,
         )
         payload = campaign_config.to_payload()
@@ -177,6 +183,7 @@ def _build_campaign_config(
     special_ad_categories: Optional[str],
     daily_budget: Optional[int],
     lifetime_budget: Optional[int],
+    is_adset_budget_sharing_enabled: Optional[bool],
     status: str,
 ) -> CampaignCreateConfig:
     if config_path:
@@ -189,6 +196,7 @@ def _build_campaign_config(
         special_ad_categories=_split_csv(special_ad_categories),
         daily_budget=daily_budget,
         lifetime_budget=lifetime_budget,
+        is_adset_budget_sharing_enabled=is_adset_budget_sharing_enabled,
         status=status,
     )
 

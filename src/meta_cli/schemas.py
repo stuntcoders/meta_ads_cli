@@ -16,6 +16,7 @@ class CampaignCreateConfig(BaseModel):
     special_ad_categories: List[str] = Field(default_factory=list)
     daily_budget: Optional[int] = None
     lifetime_budget: Optional[int] = None
+    is_adset_budget_sharing_enabled: Optional[bool] = None
     status: str = "PAUSED"
 
     @field_validator("special_ad_categories", mode="before")
