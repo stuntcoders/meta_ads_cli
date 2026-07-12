@@ -64,6 +64,32 @@ def test_auth_test_uses_selected_environment(tmp_path, monkeypatch):
     assert captured["credentials"].app_secret == PROFILE_SECRET
     assert captured["credentials"].api_version == "v23.0"
     assert "Authentication successful" in result.stdout
+    assert "Active environment: sandbox" in result.stdout
+    assert PROFILE_TOKEN not in result.stdout
+    assert PROFILE_SECRET not in result.stdout
+
+
+def test_auth_test_json_reports_selected_environment(tmp_path, monkeypatch):
+    path = tmp_path / "environments.yaml"
+    _write_selected_profile(path)
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(path))
+
+    class FakeClient:
+        def __init__(self, _credentials):
+            pass
+
+        def test_auth(self):
+            return {"id": "act_123", "name": "Test Account", "account_status": 1}
+
+    monkeypatch.setattr("meta_cli.commands.auth.MetaSDKClient", FakeClient)
+
+    result = runner.invoke(app, ["auth", "test", "--json"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["auth_source"] == "named_environment"
+    assert payload["active_environment"] == "sandbox"
     assert PROFILE_TOKEN not in result.stdout
     assert PROFILE_SECRET not in result.stdout
 
@@ -101,6 +127,51 @@ META_API_VERSION: v22.0
     assert captured["credentials"].app_id == "legacy-file-app"
     assert captured["credentials"].ad_account_id == "act_999"
     assert captured["credentials"].access_token != PROFILE_TOKEN
+    assert "Active environment: none (explicit legacy config override)" in result.stdout
+    assert "Active environment: sandbox" not in result.stdout
+    for secret in (
+        PROFILE_TOKEN,
+        PROFILE_SECRET,
+        "legacy-file-token",
+        "legacy-file-secret",
+        "legacy-env-token",
+    ):
+        assert secret not in result.stdout
+
+
+def test_auth_test_json_distinguishes_legacy_override(tmp_path, monkeypatch):
+    environments = tmp_path / "environments.yaml"
+    _write_selected_profile(environments)
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
+    legacy = tmp_path / "legacy.yaml"
+    legacy.write_text(
+        """
+META_ACCESS_TOKEN: legacy-json-token
+META_APP_ID: legacy-json-app
+META_APP_SECRET: legacy-json-secret
+META_AD_ACCOUNT_ID: 999
+""".strip()
+    )
+
+    class FakeClient:
+        def __init__(self, _credentials):
+            pass
+
+        def test_auth(self):
+            return {"id": "act_999", "name": "Legacy", "account_status": 1}
+
+    monkeypatch.setattr("meta_cli.commands.auth.MetaSDKClient", FakeClient)
+
+    result = runner.invoke(app, ["auth", "test", "--config", str(legacy), "--json"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["auth_source"] == "legacy_config"
+    assert payload["active_environment"] is None
+    assert "sandbox" not in result.stdout
+    assert "legacy-json-token" not in result.stdout
+    assert "legacy-json-secret" not in result.stdout
 
 
 def test_standard_command_selected_profile_and_legacy_override(tmp_path, monkeypatch):
@@ -188,6 +259,21 @@ profiles:
     assert "environments use <name>" in payload["error"]
     assert PROFILE_TOKEN not in result.stdout
     assert PROFILE_SECRET not in result.stdout
+
+
+def test_malformed_legacy_auth_file_does_not_echo_secret(tmp_path):
+    legacy = tmp_path / "legacy.yaml"
+    malformed_secret = "malformed-secret-never-print"
+    legacy.write_text(f"META_ACCESS_TOKEN: [{malformed_secret}\n")
+
+    result = runner.invoke(app, ["auth", "test", "--config", str(legacy), "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["auth_source"] == "legacy_config"
+    assert payload["active_environment"] is None
+    assert "Invalid YAML in config file" in payload["error"]
+    assert malformed_secret not in result.stdout
 
 
 def test_authentication_api_error_redacts_selected_secrets(tmp_path, monkeypatch):

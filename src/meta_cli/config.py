@@ -41,8 +41,9 @@ def _read_yaml_config(path: Path) -> dict[str, Any]:
         raise ConfigError(f"Config file not found: {path}")
     try:
         data = yaml.safe_load(path.read_text()) or {}
-    except yaml.YAMLError as exc:
-        raise ConfigError(f"Invalid YAML in config file {path}: {exc}") from exc
+    except yaml.YAMLError:
+        # Parser details may echo nearby credential values from malformed files.
+        raise ConfigError(f"Invalid YAML in config file: {path}") from None
     if not isinstance(data, dict):
         raise ConfigError("Config root must be a mapping")
     return data

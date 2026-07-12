@@ -25,6 +25,15 @@ def _safe_auth_error(exc: Exception, settings: object | None) -> str:
     return message
 
 
+def _auth_context(config: str | None, settings: object | None) -> dict[str, str | None]:
+    if config is not None:
+        return {"auth_source": "legacy_config", "active_environment": None}
+    return {
+        "auth_source": "named_environment",
+        "active_environment": getattr(settings, "active_environment", None),
+    }
+
+
 @app.command("test")
 def auth_test(
     config: Optional[str] = typer.Option(None, "--config", help="Path to optional YAML config file"),
@@ -36,11 +45,23 @@ def auth_test(
         settings = load_settings(config)
         client = MetaSDKClient(settings.credentials)
         result = client.test_auth()
+        context = _auth_context(config, settings)
         if json_output:
-            emit({"ok": True, "account": result}, as_json=True)
+            emit({"ok": True, **context, "account": result}, as_json=True)
             return
         emit("✅ Authentication successful")
+        if context["active_environment"] is not None:
+            emit(f"Active environment: {context['active_environment']}")
+        else:
+            emit("Active environment: none (explicit legacy config override)")
         emit(f"Account: {result['name']} ({result['id']}) status={result['account_status']}")
     except (ConfigError, APIError) as exc:
-        emit({"ok": False, "error": _safe_auth_error(exc, settings)}, as_json=json_output)
+        emit(
+            {
+                "ok": False,
+                **_auth_context(config, settings),
+                "error": _safe_auth_error(exc, settings),
+            },
+            as_json=json_output,
+        )
         raise typer.Exit(code=1) from exc
