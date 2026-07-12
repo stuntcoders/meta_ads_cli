@@ -165,6 +165,15 @@ class MetaSDKClient:
         AdVideo = self._import_class("facebook_business.adobjects.advideo", "AdVideo")
         return AdVideo(video_id)
 
+    def get_account_details(self, fields: List[str]) -> Dict[str, Any]:
+        self.initialize()
+        account = self.get_ad_account()
+        try:
+            result = account.api_get(fields=fields)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to fetch ad account metadata: {exc}") from exc
+        return self.to_dict(result)
+
     def get_campaign_details(self, campaign_id: str, fields: List[str]) -> Dict[str, Any]:
         self.initialize()
         campaign = self.get_campaign(campaign_id)
@@ -309,6 +318,26 @@ class MetaSDKClient:
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list ad sets for campaign {campaign_id}: {exc}") from exc
 
+    def list_all_adsets(
+        self,
+        fields: List[str],
+        limit: int = 200,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        self.initialize()
+        account = self.get_ad_account()
+        try:
+            cursor = account.get_ad_sets(fields=fields, params={"limit": limit})
+            rows, _ = self._collect_cursor(
+                cursor,
+                auto_paginate=auto_paginate,
+                max_pages=max_pages,
+            )
+            return rows
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to list account ad sets: {exc}") from exc
+
     def list_ads(
         self,
         adset_id: str,
@@ -361,6 +390,23 @@ class MetaSDKClient:
             return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list all ads: {exc}") from exc
+
+    def get_account_insights(
+        self,
+        fields: List[str],
+        date_preset: str,
+    ) -> List[Dict[str, Any]]:
+        self.initialize()
+        account = self.get_ad_account()
+        params = {"level": "account", "date_preset": date_preset, "limit": 100}
+        try:
+            cursor = account.get_insights(fields=fields, params=params)
+            rows, _ = self._collect_cursor(cursor, auto_paginate=True)
+            return rows
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                f"Failed to fetch account insights for date preset {date_preset}: {exc}"
+            ) from exc
 
     def get_ad_insights(
         self,

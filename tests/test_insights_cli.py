@@ -115,6 +115,8 @@ def test_insights_output_file_json(monkeypatch, tmp_path):
     )
     assert result.exit_code == 0
     payload = output_path.read_text()
+    assert '"data"' in payload
+    assert '"ad_id": "1"' in payload
     assert '"paging"' in payload
     assert '"meta"' in payload
 

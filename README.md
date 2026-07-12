@@ -7,6 +7,7 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 - Validate Meta auth and account access
 - List campaigns, ad sets, ads
 - Fetch ad insights/performance metrics
+- Save read-only account snapshots with recurring period insights
 - Upload image/video assets
 - Create ad sets and ads from YAML or flags
 - Pause/resume campaigns, ad sets, ads
@@ -148,13 +149,60 @@ meta-cli ads list --all
 meta-cli ads get <ad_id>
 ```
 
+List commands follow every Meta API page by default, so `--limit` controls rows per request rather
+than the total rows returned. Use `--max-pages <n>` to cap requests or `--no-paginate` to fetch one
+page. To resume from a cursor, pass either `--after <cursor>` or `--before <cursor>` (not both):
+
+```bash
+meta-cli campaigns list --limit 100 --max-pages 3
+meta-cli ads list --all --no-paginate --after <cursor> --json
+```
+
+Human-readable output contains all fetched rows. JSON list output is an envelope with `data` and a
+`paging` object containing the requested cursors, `next_after`, `has_more`, `pages_fetched`, and
+`total_count` when Meta supplies it. This makes a deliberately capped request resumable.
+
 ### Insights
 
 ```bash
 meta-cli insights ads --all --date-preset last_7d
-meta-cli insights ads --adset-id <id> --since 2026-03-01 --until 2026-03-21
+meta-cli insights ads --adset-id <adset_id> --since 2026-03-01 --until 2026-03-21
 meta-cli insights ads --all --output-file exports/insights.csv --output-format csv
 ```
+
+Ad insights are also fully paginated by default and support `--limit`, `--max-pages`,
+`--no-paginate`, `--after`, and `--before`. Both dates are required when using `--since` and
+`--until`; an explicit date range takes precedence over `--date-preset`. `--json` and JSON exports
+use the same `data`/`paging` envelope. CSV exports contain the fetched insight rows only.
+
+### First-class recurring account report
+
+`report account` replaces one-off SDK reporting scripts. It collects current account metadata,
+campaigns, ad sets, ads, and account-level insights in one read-only workflow; it never changes ad
+account objects. By default it includes today, yesterday, trailing 7-day, trailing 30-day, and
+lifetime (`maximum`) Meta date presets. It uses the standard CLI credentials, or a YAML path passed
+with `--auth-config`.
+
+```bash
+# Human-readable account, entity, and period summaries
+meta-cli report account
+
+# Complete structured report suitable for a daily archive (parent directories are created)
+meta-cli report account --output-file "reports/$(date +%F)-account.json"
+
+# Select periods and emit the complete report to stdout
+meta-cli report account --periods today,7d,30d --json
+
+# Safely use a local auth file without putting any credential values in the command
+meta-cli report account --auth-config "$HOME/.meta-ads-auth.yaml" --output-file reports/account.json
+```
+
+The complete JSON includes `generated_at`, `read_only`, `account`, `campaigns`, `adsets`, `ads`, an
+entity `summary`, and one `insights` entry per requested period. The normal terminal view is a
+concise summary; use `--json` or `--output-file` for full entity data. Entity collections are fully
+paginated by default, and `--limit` is the per-request page size. Use `--max-pages` only when
+intentionally limiting each entity collection in a large account snapshot. Account-level insight
+rows are fully paginated independently.
 
 ### Media uploads
 
