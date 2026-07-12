@@ -161,6 +161,12 @@ class MetaSDKClient:
         Ad = self._import_class("facebook_business.adobjects.ad", "Ad")
         return Ad(ad_id)
 
+    def get_creative(self, creative_id: str):
+        AdCreative = self._import_class(
+            "facebook_business.adobjects.adcreative", "AdCreative"
+        )
+        return AdCreative(creative_id)
+
     def get_video(self, video_id: str):
         AdVideo = self._import_class("facebook_business.adobjects.advideo", "AdVideo")
         return AdVideo(video_id)
@@ -199,6 +205,15 @@ class MetaSDKClient:
             result = ad.api_get(fields=fields)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to fetch ad {ad_id}: {exc}") from exc
+        return self.to_dict(result)
+
+    def get_creative_details(self, creative_id: str, fields: List[str]) -> Dict[str, Any]:
+        self.initialize()
+        creative = self.get_creative(creative_id)
+        try:
+            result = creative.api_get(fields=fields)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to fetch creative {creative_id}: {exc}") from exc
         return self.to_dict(result)
 
     @staticmethod

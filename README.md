@@ -5,7 +5,7 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 ## What this CLI does
 
 - Validate Meta auth and account access
-- List campaigns, ad sets, ads
+- List campaigns, ad sets, ads, and inspect ad creatives
 - Fetch ad insights/performance metrics
 - Save read-only account snapshots with recurring period insights
 - Upload image/video assets
@@ -147,7 +147,11 @@ meta-cli adsets get <adset_id>
 meta-cli ads list --adset-id <adset_id>
 meta-cli ads list --all
 meta-cli ads get <ad_id>
+meta-cli creatives get <creative_id>
 ```
+
+`creatives get` includes the object story spec and asset feed spec, which is useful for confirming
+Facebook Page and Instagram actor identities plus placement-specific creative rules.
 
 `adsets get` details include the `promoted_object`, including pixel and conversion-event
 optimization data returned by Meta, in both normal and JSON output.
