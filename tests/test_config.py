@@ -23,14 +23,25 @@ def clear_meta_env(monkeypatch, tmp_path):
         monkeypatch.delenv(key, raising=False)
 
 
-def test_load_settings_from_env(monkeypatch):
-    monkeypatch.setenv("META_ACCESS_TOKEN", "token")
-    monkeypatch.setenv("META_APP_ID", "app")
-    monkeypatch.setenv("META_APP_SECRET", "secret")
-    monkeypatch.setenv("META_AD_ACCOUNT_ID", "123456")
+def test_load_settings_from_selected_environment(tmp_path, monkeypatch):
+    environments = tmp_path / "environments.yaml"
+    environments.write_text(
+        """
+active_profile: sandbox
+profiles:
+  sandbox:
+    access_token: selected-token
+    app_id: selected-app
+    app_secret: selected-secret
+    ad_account_id: 123456
+""".strip()
+    )
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
 
     settings = load_settings()
 
+    assert settings.active_environment == "sandbox"
+    assert settings.credentials.access_token == "selected-token"
     assert settings.credentials.ad_account_id == "act_123456"
     assert settings.credentials.api_version == "v20.0"
 
@@ -57,6 +68,16 @@ META_API_VERSION: v21.0
     assert settings.credentials.api_version == "v21.0"
 
 
-def test_missing_required_values_raises():
-    with pytest.raises(ConfigError):
+def test_ambient_credentials_do_not_replace_profile_selection(monkeypatch):
+    monkeypatch.setenv("META_ACCESS_TOKEN", "ambient-token")
+    monkeypatch.setenv("META_APP_ID", "ambient-app")
+    monkeypatch.setenv("META_APP_SECRET", "ambient-secret")
+    monkeypatch.setenv("META_AD_ACCOUNT_ID", "123")
+
+    with pytest.raises(ConfigError, match="No active Meta Ads environment"):
+        load_settings()
+
+
+def test_missing_selection_is_actionable():
+    with pytest.raises(ConfigError, match="environments use <name>"):
         load_settings()

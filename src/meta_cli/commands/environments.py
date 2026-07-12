@@ -79,6 +79,13 @@ def current_environment(
             "Run 'meta-cli environments use <name>' to select one.",
             json_output,
         )
+    if config.active_profile not in config.profiles:
+        _fail(
+            f"Active Meta Ads environment '{config.active_profile}' no longer exists. "
+            "Run 'meta-cli environments list' and "
+            "'meta-cli environments use <name>' to select an available profile.",
+            json_output,
+        )
 
     identity = _profile_identity(
         config.active_profile,

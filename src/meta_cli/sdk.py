@@ -30,14 +30,26 @@ class MetaSDKClient:
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to import SDK class {class_name}: {exc}") from exc
 
+    def _redact_exception(self, exc: Exception) -> str:
+        message = str(exc)
+        for secret in (self.credentials.access_token, self.credentials.app_secret):
+            if secret:
+                message = message.replace(secret, "[REDACTED]")
+        return message
+
     def initialize(self) -> None:
         FacebookAdsApi, _ = self._core_imports()
-        FacebookAdsApi.init(
-            app_id=self.credentials.app_id,
-            app_secret=self.credentials.app_secret,
-            access_token=self.credentials.access_token,
-            api_version=self.credentials.api_version,
-        )
+        try:
+            FacebookAdsApi.init(
+                app_id=self.credentials.app_id,
+                app_secret=self.credentials.app_secret,
+                access_token=self.credentials.access_token,
+                api_version=self.credentials.api_version,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                f"Failed to initialize Meta authentication: {self._redact_exception(exc)}"
+            ) from exc
 
     @staticmethod
     def to_dict(obj: Any) -> Dict[str, Any]:
@@ -272,7 +284,10 @@ class MetaSDKClient:
         try:
             result = account.api_get(fields=["id", "name", "account_status"])
         except Exception as exc:  # noqa: BLE001
-            raise APIError(f"Failed to authenticate or access ad account: {exc}") from exc
+            raise APIError(
+                "Failed to authenticate or access ad account: "
+                f"{self._redact_exception(exc)}"
+            ) from exc
         data = self.to_dict(result)
         return {
             "id": data.get("id"),
