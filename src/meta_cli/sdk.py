@@ -410,16 +410,21 @@ class MetaSDKClient:
         self, query: str, countries: List[str] | None = None
     ) -> List[Dict[str, Any]]:
         self.initialize()
-        account = self.get_ad_account()
-        params: Dict[str, Any] = {
-            "q": query,
-            "whitelisted_types": ["geo_locations"],
-        }
-        if countries:
-            params["countries"] = countries
         try:
-            cursor = account.get_targeting_search(params=params)
-            rows, _ = self._collect_cursor(cursor, auto_paginate=True)
+            TargetingSearch = self._import_class(
+                "facebook_business.adobjects.targetingsearch", "TargetingSearch"
+            )
+            results = TargetingSearch.search(
+                params={
+                    "q": query,
+                    "type": "adgeolocation",
+                    "location_types": ["city", "region"],
+                }
+            )
+            rows = [self.to_dict(item) for item in results]
+            if countries:
+                country_codes = {country.upper() for country in countries}
+                rows = [row for row in rows if row.get("country_code") in country_codes]
             return rows
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to search targeting locations for '{query}': {exc}") from exc
