@@ -7,13 +7,14 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+from meta_cli.environments import EnvironmentStore
 from meta_cli.exceptions import ConfigError
 
 
 class MetaCredentials(BaseModel):
-    access_token: str = Field(alias="META_ACCESS_TOKEN")
+    access_token: str = Field(alias="META_ACCESS_TOKEN", repr=False)
     app_id: str = Field(alias="META_APP_ID")
-    app_secret: str = Field(alias="META_APP_SECRET")
+    app_secret: str = Field(alias="META_APP_SECRET", repr=False)
     ad_account_id: str = Field(alias="META_AD_ACCOUNT_ID")
     api_version: str = Field(default="v20.0", alias="META_API_VERSION")
     system_user_id: str | None = Field(default=None, alias="META_SYSTEM_USER_ID")
@@ -35,6 +36,7 @@ class MetaCredentials(BaseModel):
 
 class Settings(BaseModel):
     credentials: MetaCredentials
+    active_environment: str | None = None
 
 
 def _read_yaml_config(path: Path) -> dict[str, Any]:
@@ -112,4 +114,11 @@ def load_settings(config_path: str | None = None) -> Settings:
             f"{pretty_keys}"
         ) from exc
 
-    return Settings(credentials=creds)
+    return Settings(
+        credentials=creds,
+        # An explicit legacy auth file is a deliberate override and must not depend on
+        # the named-environment store being readable.
+        active_environment=(
+            None if config_path is not None else EnvironmentStore().active_profile_name()
+        ),
+    )

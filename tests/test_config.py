@@ -7,7 +7,8 @@ from meta_cli.exceptions import ConfigError
 
 
 @pytest.fixture(autouse=True)
-def clear_meta_env(monkeypatch):
+def clear_meta_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(tmp_path / "environments.yaml"))
     for key in [
         "META_ACCESS_TOKEN",
         "META_APP_ID",
