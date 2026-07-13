@@ -127,13 +127,43 @@ See full configuration details in:
 
 - [`docs/meta-setup-and-configuration.md`](docs/meta-setup-and-configuration.md)
 
+Credentials can be supplied with the existing environment variables / single auth YAML flow, or through a multi-profile environments file for command-center workspaces.
+
+Environment stores use this shape:
+
+```yaml
+active_profile: brand-a
+profiles:
+  brand-a:
+    display_name: Brand A
+    access_token: "..."
+    app_id: "..."
+    app_secret: "..."
+    ad_account_id: "act_111111111111111"
+    api_version: "v25.0"
+```
+
+Set `META_CLI_ENVIRONMENTS_FILE=/path/to/.meta-ads-environments.yml` and then use:
+
+```bash
+meta-cli environments list      # lists profiles without printing secrets
+meta-cli environments current   # shows the selected profile without secrets
+meta-cli environments use brand-a
+meta-cli auth test
+```
+
+When `META_CLI_ENVIRONMENTS_FILE` is set, normal commands load credentials from the selected `active_profile`. Explicit command config files and process environment variables still override those values.
+
 ---
 
 ## Quick command examples
 
-### Auth
+### Environments and auth
 
 ```bash
+meta-cli environments list
+meta-cli environments current
+meta-cli environments use brand-a
 meta-cli auth test
 meta-cli auth test --json
 ```
