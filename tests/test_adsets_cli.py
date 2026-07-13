@@ -101,6 +101,8 @@ def test_adsets_get_json(monkeypatch):
     assert fake.last_get_adset["adset_id"] == "a1"
     assert "targeting" in fake.last_get_adset["fields"]
     assert "promoted_object" in fake.last_get_adset["fields"]
+    assert "learning_stage_info" in fake.last_get_adset["fields"]
+    assert "issues_info" in fake.last_get_adset["fields"]
 
 
 def test_adsets_get_normal_output_includes_promoted_object(monkeypatch):

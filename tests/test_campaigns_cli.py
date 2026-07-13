@@ -106,6 +106,8 @@ def test_campaign_get_json(monkeypatch):
     assert fake.last_get_campaign is not None
     assert fake.last_get_campaign["campaign_id"] == "123"
     assert "created_time" in fake.last_get_campaign["fields"]
+    assert "issues_info" in fake.last_get_campaign["fields"]
+    assert "budget_remaining" in fake.last_get_campaign["fields"]
 
 
 def test_campaign_create_dry_run_flags_is_json_and_does_not_build_client(monkeypatch):

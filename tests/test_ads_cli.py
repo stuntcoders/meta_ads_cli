@@ -150,6 +150,8 @@ def test_ads_get_json(monkeypatch):
     assert fake.last_get_ad is not None
     assert fake.last_get_ad["ad_id"] == "ad_1"
     assert "tracking_specs" in fake.last_get_ad["fields"]
+    assert "issues_info" in fake.last_get_ad["fields"]
+    assert "failed_delivery_checks" in fake.last_get_ad["fields"]
 
 
 def test_ads_create_dry_run_multi_text(monkeypatch):

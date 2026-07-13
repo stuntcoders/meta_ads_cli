@@ -297,8 +297,10 @@ meta-cli creatives get <creative_id>
 `creatives get` includes the object story spec and asset feed spec, which is useful for confirming
 Facebook Page and Instagram actor identities plus placement-specific creative rules.
 
-`adsets get` details include the `promoted_object`, including pixel and conversion-event
-optimization data returned by Meta, in both normal and JSON output.
+`campaigns get`, `adsets get`, and `ads get` include Meta delivery diagnostics when available,
+including configured/effective status, issues, recommendations, remaining budget, learning-stage
+information, review feedback, and failed delivery checks. `adsets get` also includes the
+`promoted_object`, including pixel and conversion-event optimization data.
 
 List commands follow every Meta API page by default, so `--limit` controls rows per request rather
 than the total rows returned. Use `--max-pages <n>` to cap requests or `--no-paginate` to fetch one
