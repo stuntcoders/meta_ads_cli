@@ -18,7 +18,6 @@ def clear_meta_env(monkeypatch, tmp_path):
         "META_SYSTEM_USER_ID",
         "META_FACEBOOK_PAGE_ID",
         "META_INSTAGRAM_USER_ID",
-        "META_CLI_ENVIRONMENTS_FILE",
     ]:
         monkeypatch.delenv(key, raising=False)
 
