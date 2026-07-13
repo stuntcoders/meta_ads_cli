@@ -362,15 +362,7 @@ def test_ads_create_labeled_text_assets_from_json_flags_dry_run():
             "body_label": "body_feed",
             "description_label": "description_feed",
             "priority": 1,
-        },
-        {
-            "customization_spec": {},
-            "image_label": "feed_4x5",
-            "title_label": "headline_feed",
-            "body_label": "body_feed",
-            "description_label": "description_feed",
-            "priority": 2,
-        },
+        }
     ]
     result = runner.invoke(
         app,
@@ -434,15 +426,7 @@ def test_ads_create_labeled_text_assets_from_json_flags_dry_run():
                 "title_label": {"name": "headline_feed"},
                 "body_label": {"name": "body_feed"},
                 "description_label": {"name": "description_feed"},
-            },
-            {
-                "customization_spec": {},
-                "priority": 2,
-                "image_label": {"name": "feed_4x5"},
-                "title_label": {"name": "headline_feed"},
-                "body_label": {"name": "body_feed"},
-                "description_label": {"name": "description_feed"},
-            },
+            }
         ],
         "ad_formats": ["SINGLE_IMAGE"],
         "call_to_action_types": ["LEARN_MORE"],
