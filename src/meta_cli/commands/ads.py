@@ -149,11 +149,35 @@ def create_ad(
     headlines: Optional[str] = typer.Option(
         None, "--headlines", help="Comma-separated headline variants"
     ),
+    headline_assets_json: Optional[str] = typer.Option(
+        None,
+        "--headline-assets-json",
+        help=(
+            'JSON array of labeled headline assets, e.g. '
+            '[{"text": "Feed headline", "label": "headline_feed"}]'
+        ),
+    ),
     bodies: Optional[str] = typer.Option(
         None, "--bodies", help="Comma-separated body text variants"
     ),
+    body_assets_json: Optional[str] = typer.Option(
+        None,
+        "--body-assets-json",
+        help=(
+            'JSON array of labeled body assets, e.g. '
+            '[{"text": "Feed body", "label": "body_feed"}]'
+        ),
+    ),
     descriptions: Optional[str] = typer.Option(
         None, "--descriptions", help="Comma-separated description variants"
+    ),
+    description_assets_json: Optional[str] = typer.Option(
+        None,
+        "--description-assets-json",
+        help=(
+            'JSON array of labeled description assets, e.g. '
+            '[{"text": "Feed description", "label": "description_feed"}]'
+        ),
     ),
     image_hashes: Optional[str] = typer.Option(
         None, "--image-hashes", help="Comma-separated image hashes"
@@ -166,7 +190,13 @@ def create_ad(
     asset_customization_rules_json: Optional[str] = typer.Option(
         None,
         "--asset-customization-rules-json",
-        help="JSON array of placement customization rules",
+        help=(
+            "JSON array of placement customization rules; text selectors use "
+            '"title_label", "body_label", and "description_label", e.g. '
+            '[{"customization_spec": {"publisher_platforms": ["facebook"]}, '
+            '"image_label": "feed_4x5", "title_label": "headline_feed", '
+            '"body_label": "body_feed", "description_label": "description_feed"}]'
+        ),
     ),
     video_id: Optional[str] = typer.Option(None, "--video-id", help="Uploaded video ID"),
     call_to_action_type: str = typer.Option(
@@ -190,8 +220,11 @@ def create_ad(
             instagram_user_id=instagram_user_id,
             destination_url=destination_url,
             headlines=headlines,
+            headline_assets_json=headline_assets_json,
             bodies=bodies,
+            body_assets_json=body_assets_json,
             descriptions=descriptions,
+            description_assets_json=description_assets_json,
             image_hashes=image_hashes,
             image_assets_json=image_assets_json,
             asset_customization_rules_json=asset_customization_rules_json,
@@ -310,7 +343,13 @@ def _split_csv(value: Optional[str]) -> List[str]:
 def _parse_json_list(value: Optional[str], flag_name: str) -> List[Any]:
     if not value:
         return []
-    parsed = json.loads(value)
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{flag_name} must be valid JSON: {exc.msg} "
+            f"at line {exc.lineno} column {exc.colno}"
+        ) from exc
     if not isinstance(parsed, list):
         raise ValueError(f"{flag_name} must be a JSON array")
     return parsed
@@ -325,8 +364,11 @@ def _build_ad_config(
     instagram_user_id: Optional[str],
     destination_url: Optional[str],
     headlines: Optional[str],
+    headline_assets_json: Optional[str],
     bodies: Optional[str],
+    body_assets_json: Optional[str],
     descriptions: Optional[str],
+    description_assets_json: Optional[str],
     image_hashes: Optional[str],
     image_assets_json: Optional[str],
     asset_customization_rules_json: Optional[str],
@@ -368,8 +410,13 @@ def _build_ad_config(
         ),
         destination_url=destination_url,
         headlines=_split_csv(headlines),
+        headline_assets=_parse_json_list(headline_assets_json, "--headline-assets-json"),
         bodies=_split_csv(bodies),
+        body_assets=_parse_json_list(body_assets_json, "--body-assets-json"),
         descriptions=_split_csv(descriptions),
+        description_assets=_parse_json_list(
+            description_assets_json, "--description-assets-json"
+        ),
         image_hashes=_split_csv(image_hashes),
         image_assets=_parse_json_list(image_assets_json, "--image-assets-json"),
         asset_customization_rules=_parse_json_list(

@@ -343,12 +343,13 @@ def test_ads_create_without_explicit_or_profile_page_keeps_validation_error():
     )["error"]
 
 
-def test_ads_create_placement_images_from_json_flags_dry_run():
-    image_assets = [
-        {"hash": "portrait", "label": "feed_4x5"},
-        {"hash": "square", "label": "feed_1x1"},
-        {"hash": "story", "label": "story_9x16"},
+def test_ads_create_labeled_text_assets_from_json_flags_dry_run():
+    headline_assets = [{"text": "Feed headline", "label": "headline_feed"}]
+    body_assets = [{"text": "Feed body", "label": "body_feed"}]
+    description_assets = [
+        {"text": "Feed description", "label": "description_feed"}
     ]
+    image_assets = [{"hash": "portrait", "label": "feed_4x5"}]
     rules = [
         {
             "customization_spec": {
@@ -357,17 +358,11 @@ def test_ads_create_placement_images_from_json_flags_dry_run():
                 "instagram_positions": ["stream"],
             },
             "image_label": "feed_4x5",
+            "title_label": "headline_feed",
+            "body_label": "body_feed",
+            "description_label": "description_feed",
             "priority": 1,
-        },
-        {
-            "customization_spec": {
-                "publisher_platforms": ["facebook", "instagram"],
-                "facebook_positions": ["story"],
-                "instagram_positions": ["story"],
-            },
-            "image_label": "story_9x16",
-            "priority": 2,
-        },
+        }
     ]
     result = runner.invoke(
         app,
@@ -382,8 +377,12 @@ def test_ads_create_placement_images_from_json_flags_dry_run():
             "p1",
             "--destination-url",
             "https://example.com",
-            "--bodies",
-            "Body",
+            "--headline-assets-json",
+            json.dumps(headline_assets),
+            "--body-assets-json",
+            json.dumps(body_assets),
+            "--description-assets-json",
+            json.dumps(description_assets),
             "--image-assets-json",
             json.dumps(image_assets),
             "--asset-customization-rules-json",
@@ -394,10 +393,178 @@ def test_ads_create_placement_images_from_json_flags_dry_run():
     )
 
     assert result.exit_code == 0
-    output = json.loads(result.stdout)
-    feed = output["creative_payload"]["asset_feed_spec"]
-    assert feed["images"][0]["adlabels"] == [{"name": "feed_4x5"}]
-    assert feed["asset_customization_rules"][1]["image_label"] == {"name": "story_9x16"}
+    feed = json.loads(result.stdout)["creative_payload"]["asset_feed_spec"]
+    assert feed == {
+        "bodies": [
+            {"text": "Feed body", "adlabels": [{"name": "body_feed"}]},
+        ],
+        "titles": [
+            {
+                "text": "Feed headline",
+                "adlabels": [{"name": "headline_feed"}],
+            }
+        ],
+        "link_urls": [{"website_url": "https://example.com"}],
+        "descriptions": [
+            {
+                "text": "Feed description",
+                "adlabels": [{"name": "description_feed"}],
+            }
+        ],
+        "images": [
+            {"hash": "portrait", "adlabels": [{"name": "feed_4x5"}]},
+        ],
+        "asset_customization_rules": [
+            {
+                "customization_spec": {
+                    "publisher_platforms": ["facebook", "instagram"],
+                    "facebook_positions": ["feed"],
+                    "instagram_positions": ["stream"],
+                },
+                "priority": 1,
+                "image_label": {"name": "feed_4x5"},
+                "title_label": {"name": "headline_feed"},
+                "body_label": {"name": "body_feed"},
+                "description_label": {"name": "description_feed"},
+            }
+        ],
+        "ad_formats": ["SINGLE_IMAGE"],
+        "call_to_action_types": ["LEARN_MORE"],
+    }
+
+
+@pytest.mark.parametrize(
+    "flag_name",
+    [
+        "--headline-assets-json",
+        "--body-assets-json",
+        "--description-assets-json",
+    ],
+)
+def test_ads_create_rejects_malformed_labeled_text_json_flags(flag_name):
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Malformed JSON Ad",
+            "--page-id",
+            "p1",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-hashes",
+            "image1",
+            flag_name,
+            "[{",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert f"{flag_name} must be valid JSON" in error
+    assert "line 1 column" in error
+
+
+@pytest.mark.parametrize(
+    "flag_name",
+    [
+        "--headline-assets-json",
+        "--body-assets-json",
+        "--description-assets-json",
+    ],
+)
+def test_ads_create_rejects_non_array_labeled_text_json_flags(flag_name):
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Non-array JSON Ad",
+            "--page-id",
+            "p1",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-hashes",
+            "image1",
+            flag_name,
+            '{"text":"Copy","label":"copy"}',
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["error"] == f"{flag_name} must be a JSON array"
+
+
+@pytest.mark.parametrize(
+    ("flag_name", "required_body"),
+    [
+        ("--headline-assets-json", True),
+        ("--body-assets-json", False),
+        ("--description-assets-json", True),
+    ],
+)
+def test_ads_create_rejects_invalid_labeled_text_asset_objects(
+    flag_name, required_body
+):
+    args = [
+        "ads",
+        "create",
+        "--adset-id",
+        "a1",
+        "--name",
+        "Invalid Asset Ad",
+        "--page-id",
+        "p1",
+        "--destination-url",
+        "https://example.com",
+        "--image-hashes",
+        "image1",
+    ]
+    if required_body:
+        args.extend(["--bodies", "Body"])
+    args.extend(
+        [
+            flag_name,
+            '[{"text":"Copy"}]',
+            "--dry-run",
+            "--json",
+        ]
+    )
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert "label" in error
+    assert "Field required" in error
+
+
+def test_ads_create_help_lists_labeled_text_json_flags_and_rule_selectors():
+    result = runner.invoke(app, ["ads", "create", "--help"], terminal_width=200)
+
+    assert result.exit_code == 0
+    assert "--headline-assets-json" in result.stdout
+    assert "--body-assets-json" in result.stdout
+    assert "--description-assets-json" in result.stdout
+    # Rich abbreviates this long option in the rendered help table.
+    assert "--asset-customization-rules-js" in result.stdout
+    assert "title_label" in result.stdout
+    assert "body_label" in result.stdout
+    assert "description_label" in result.stdout
 
 
 def test_ads_create_placement_yaml_matches_json_structure(tmp_path):
