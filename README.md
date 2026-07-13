@@ -409,38 +409,25 @@ For placement-specific static creative, `ads create` accepts `image_assets` and
 nonblank `label`; each rule has a Meta `customization_spec`, an `image_label` referencing one of
 those labels, and an optional `priority`. The generated `asset_feed_spec` adds the label as an
 `adlabels` entry on each image and emits the rules with Meta's `{\"name\": ...}` image-label
-shape.
+shape. See `examples/ad-placement-images.yaml` for dedicated 4:5 feed, 1:1, and 9:16
+Stories/Reels assets.
 
-Placement rules may also select placement-specific copy. Use `headline_assets`, `body_assets`,
-and `description_assets`, whose entries contain nonblank `text` and unique `label` values. A rule
-selects them through `title_label`, `body_label`, and `description_label`. The generated payload
-adds `adlabels` to each text asset and emits every selector in Meta's `{\"name\": ...}` shape.
-When placement rules are present, multiple values of a text type must use these labeled assets and
-every rule must select exactly one label for that type; the CLI rejects ambiguous multiple
-unlabeled strings before contacting Meta. A single unlabeled headline, body, or description remains
-compatible with placement rules. Ordinary dynamic multi-copy ads without placement rules retain
-the existing `headlines`, `bodies`, and `descriptions` behavior.
-
-See `examples/ad-placement-images.yaml` for a complete 4:5 feed, 1:1, and 9:16 Stories/Reels
-example with placement-specific images and copy. The equivalent CLI flags accept JSON arrays:
+The equivalent CLI flags accept JSON arrays:
 
 ```bash
 meta-cli ads create \
-  --adset-id "$ADSET_ID" --name "Placement images and copy" --page-id "$PAGE_ID" \
-  --destination-url "https://example.com" \
-  --headline-assets-json '[{"text":"Feed headline","label":"headline_feed"},{"text":"Story headline","label":"headline_story"}]' \
-  --body-assets-json '[{"text":"Feed body","label":"body_feed"},{"text":"Story body","label":"body_story"}]' \
-  --description-assets-json '[{"text":"Feed description","label":"description_feed"},{"text":"Story description","label":"description_story"}]' \
-  --image-assets-json '[{"hash":"hash_4x5","label":"feed_4x5"},{"hash":"hash_9x16","label":"stories_9x16"}]' \
-  --asset-customization-rules-json '[{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["feed"],"instagram_positions":["stream"]},"image_label":"feed_4x5","title_label":"headline_feed","body_label":"body_feed","description_label":"description_feed","priority":1},{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["story","facebook_reels"],"instagram_positions":["story","reels"]},"image_label":"stories_9x16","title_label":"headline_story","body_label":"body_story","description_label":"description_story","priority":2}]' \
+  --adset-id "$ADSET_ID" --name "Placement images" --page-id "$PAGE_ID" \
+  --destination-url "https://example.com" --bodies "Find the right tutor" \
+  --image-assets-json '[{"hash":"hash_4x5","label":"feed_4x5"},{"hash":"hash_1x1","label":"square_1x1"},{"hash":"hash_9x16","label":"stories_9x16"}]' \
+  --asset-customization-rules-json '[{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["feed"],"instagram_positions":["stream"]},"image_label":"feed_4x5","priority":1}]' \
   --dry-run --json
 ```
 
 `image_assets` requires at least one customization rule, and customization rules cannot be used
 without `image_assets`. Blank or duplicate asset labels and rules that reference unknown labels
-are rejected. Legacy text lists and their corresponding labeled asset lists are mutually exclusive,
-as are `image_hashes` and `image_assets`. Existing `image_hashes` behavior is unchanged, including
-the single-image story payload and multi-image asset-feed payload.
+are rejected. `image_hashes` and `image_assets` are mutually exclusive. Existing
+`image_hashes` behavior is unchanged, including the single-image story payload and multi-image
+asset-feed payload.
 
 `adsets update-targeting` replaces the complete targeting object, so first export or retain the
 existing targeting and include every constraint and placement that must remain. Supply exactly one

@@ -1,27 +1,14 @@
 adset_id: "120000000000002"
-name: "Example Placement Static Images and Copy"
+name: "Example Placement Static Images"
 page_id: "120000000000003"
 instagram_actor_id: "17840000000000000"
 destination_url: "https://example.com/find-a-tutor"
-headline_assets:
-  - text: "Find the right tutor"
-    label: "headline_feed"
-  - text: "Tutors near you"
-    label: "headline_square"
-  - text: "Start your tutor search"
-    label: "headline_story"
-body_assets:
-  - text: "Connect with a trusted tutor for personalized learning support."
-    label: "body_feed"
-  - text: "Explore local tutors by subject and availability."
-    label: "body_square"
-  - text: "Find a tutor whose experience fits your learning goals."
-    label: "body_story"
-description_assets:
-  - text: "Explore tutors near you"
-    label: "description_feed"
-  - text: "Compare local profiles"
-    label: "description_square"
+headlines:
+  - "Find the right tutor"
+bodies:
+  - "Connect with a trusted tutor for personalized learning support."
+descriptions:
+  - "Explore tutors near you"
 image_assets:
   - hash: "portrait_4x5_image_hash"
     label: "feed_4x5"
@@ -35,26 +22,17 @@ asset_customization_rules:
       facebook_positions: ["feed"]
       instagram_positions: ["stream"]
     image_label: "feed_4x5"
-    title_label: "headline_feed"
-    body_label: "body_feed"
-    description_label: "description_feed"
     priority: 1
   - customization_spec:
       publisher_platforms: ["facebook"]
       facebook_positions: ["right_hand_column", "marketplace"]
     image_label: "square_1x1"
-    title_label: "headline_square"
-    body_label: "body_square"
-    description_label: "description_square"
     priority: 2
   - customization_spec:
       publisher_platforms: ["facebook", "instagram"]
       facebook_positions: ["story", "facebook_reels"]
       instagram_positions: ["story", "reels"]
     image_label: "stories_reels_9x16"
-    title_label: "headline_story"
-    body_label: "body_story"
-    description_label: "description_feed"
     priority: 3
 call_to_action_type: "LEARN_MORE"
 status: "PAUSED"

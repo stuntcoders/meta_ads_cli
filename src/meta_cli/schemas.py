@@ -74,33 +74,9 @@ class ImageAsset(BaseModel):
         return label
 
 
-class TextAsset(BaseModel):
-    text: str
-    label: str
-
-    @field_validator("text")
-    @classmethod
-    def validate_text(cls, value: str) -> str:
-        text = value.strip()
-        if not text:
-            raise ValueError("Text asset text must not be blank")
-        return text
-
-    @field_validator("label")
-    @classmethod
-    def validate_label(cls, value: str) -> str:
-        label = value.strip()
-        if not label:
-            raise ValueError("Text asset label must not be blank")
-        return label
-
-
 class AssetCustomizationRule(BaseModel):
     customization_spec: Dict[str, Any]
     image_label: str
-    title_label: Optional[str] = None
-    body_label: Optional[str] = None
-    description_label: Optional[str] = None
     priority: Optional[int] = None
 
     @field_validator("image_label")
@@ -109,16 +85,6 @@ class AssetCustomizationRule(BaseModel):
         label = value.strip()
         if not label:
             raise ValueError("Customization rule image_label must not be blank")
-        return label
-
-    @field_validator("title_label", "body_label", "description_label")
-    @classmethod
-    def validate_text_label(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        label = value.strip()
-        if not label:
-            raise ValueError("Customization rule text label must not be blank")
         return label
 
 
@@ -132,9 +98,6 @@ class AdCreateConfig(BaseModel):
     headlines: List[str] = Field(default_factory=list)
     bodies: List[str] = Field(default_factory=list)
     descriptions: List[str] = Field(default_factory=list)
-    headline_assets: List[TextAsset] = Field(default_factory=list)
-    body_assets: List[TextAsset] = Field(default_factory=list)
-    description_assets: List[TextAsset] = Field(default_factory=list)
     image_hashes: List[str] = Field(default_factory=list)
     image_assets: List[ImageAsset] = Field(default_factory=list)
     asset_customization_rules: List[AssetCustomizationRule] = Field(default_factory=list)
@@ -156,18 +119,6 @@ class AdCreateConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_payload_requirements(self) -> "AdCreateConfig":
-        text_asset_fields = (
-            ("headlines", self.headlines, "headline_assets", self.headline_assets),
-            ("bodies", self.bodies, "body_assets", self.body_assets),
-            ("descriptions", self.descriptions, "description_assets", self.description_assets),
-        )
-        for legacy_name, legacy_values, asset_name, assets in text_asset_fields:
-            if legacy_values and assets:
-                raise ValueError(f"Provide either {legacy_name} or {asset_name}, not both")
-            labels = [asset.label for asset in assets]
-            if len(labels) != len(set(labels)):
-                raise ValueError(f"{asset_name} labels must be unique")
-
         if self.image_hashes and self.image_assets:
             raise ValueError("Provide either image_hashes or image_assets, not both")
         if self.asset_customization_rules and not self.image_assets:
@@ -185,47 +136,6 @@ class AdCreateConfig(BaseModel):
             names = ", ".join(sorted(unknown_labels))
             raise ValueError(f"Customization rule image_label references unknown label(s): {names}")
 
-        placement_text_fields = (
-            ("headline", self.headlines, self.headline_assets, "title_label"),
-            ("body", self.bodies, self.body_assets, "body_label"),
-            (
-                "description",
-                self.descriptions,
-                self.description_assets,
-                "description_label",
-            ),
-        )
-        for text_type, legacy_values, assets, rule_field in placement_text_fields:
-            asset_labels = {asset.label for asset in assets}
-            referenced_labels = {
-                label
-                for rule in self.asset_customization_rules
-                if (label := getattr(rule, rule_field)) is not None
-            }
-            unknown_text_labels = referenced_labels - asset_labels
-            if unknown_text_labels:
-                names = ", ".join(sorted(unknown_text_labels))
-                raise ValueError(
-                    f"Customization rule {rule_field} references unknown "
-                    f"{text_type} asset label(s): {names}"
-                )
-
-            value_count = len(legacy_values) + len(assets)
-            if self.asset_customization_rules and value_count > 1:
-                if legacy_values:
-                    raise ValueError(
-                        f"Placement customization with multiple {text_type} values requires "
-                        f"labeled {text_type}_assets and a {rule_field} on every rule"
-                    )
-                if any(
-                    getattr(rule, rule_field) is None
-                    for rule in self.asset_customization_rules
-                ):
-                    raise ValueError(
-                        f"Every asset_customization_rule must specify {rule_field} when "
-                        f"multiple {text_type}_assets are provided"
-                    )
-
         if self.existing_creative_id:
             return self
         if self.image_hashes and self.video_id:
@@ -234,8 +144,8 @@ class AdCreateConfig(BaseModel):
             raise ValueError("Provide either image_assets or video_id, not both")
         if not self.page_id:
             raise ValueError("page_id is required unless existing_creative_id is provided")
-        if not self.bodies and not self.body_assets:
-            raise ValueError("At least one body text or body asset is required")
+        if not self.bodies:
+            raise ValueError("At least one body text is required")
         if not self.destination_url:
             raise ValueError("destination_url is required")
         if not self.image_hashes and not self.image_assets and not self.video_id:
@@ -248,9 +158,6 @@ class AdCreateConfig(BaseModel):
             or len(self.bodies) > 1
             or len(self.descriptions) > 1
             or len(self.image_hashes) > 1
-            or bool(self.headline_assets)
-            or bool(self.body_assets)
-            or bool(self.description_assets)
             or bool(self.image_assets)
         )
 
@@ -266,16 +173,12 @@ class AdCreateConfig(BaseModel):
 
         if self.uses_asset_feed_spec():
             asset_feed_spec: Dict[str, Any] = {
-                "bodies": self._build_text_asset_payloads(self.bodies, self.body_assets),
-                "titles": self._build_text_asset_payloads(
-                    self.headlines, self.headline_assets
-                ),
+                "bodies": [{"text": text} for text in self.bodies],
+                "titles": [{"text": text} for text in self.headlines] if self.headlines else [],
                 "link_urls": [{"website_url": self.destination_url}],
             }
-            if self.descriptions or self.description_assets:
-                asset_feed_spec["descriptions"] = self._build_text_asset_payloads(
-                    self.descriptions, self.description_assets
-                )
+            if self.descriptions:
+                asset_feed_spec["descriptions"] = [{"text": text} for text in self.descriptions]
             if self.image_hashes:
                 asset_feed_spec["images"] = [{"hash": image_hash} for image_hash in self.image_hashes]
                 asset_feed_spec["ad_formats"] = ["SINGLE_IMAGE"]
@@ -285,7 +188,10 @@ class AdCreateConfig(BaseModel):
                     for asset in self.image_assets
                 ]
                 asset_feed_spec["asset_customization_rules"] = [
-                    self._build_customization_rule_payload(rule)
+                    {
+                        **rule.model_dump(exclude={"image_label"}, exclude_none=True),
+                        "image_label": {"name": rule.image_label},
+                    }
                     for rule in self.asset_customization_rules
                 ]
                 asset_feed_spec["ad_formats"] = ["SINGLE_IMAGE"]
@@ -339,37 +245,6 @@ class AdCreateConfig(BaseModel):
             base_story_spec["link_data"] = link_data
 
         return {"name": f"{self.name} - creative", "object_story_spec": base_story_spec}
-
-    @staticmethod
-    def _build_text_asset_payloads(
-        legacy_values: List[str], assets: List[TextAsset]
-    ) -> List[Dict[str, Any]]:
-        if assets:
-            return [
-                {
-                    "text": asset.text,
-                    "adlabels": [{"name": asset.label}],
-                }
-                for asset in assets
-            ]
-        return [{"text": text} for text in legacy_values]
-
-    @staticmethod
-    def _build_customization_rule_payload(
-        rule: AssetCustomizationRule,
-    ) -> Dict[str, Any]:
-        label_fields = (
-            "image_label",
-            "title_label",
-            "body_label",
-            "description_label",
-        )
-        payload = rule.model_dump(exclude=set(label_fields), exclude_none=True)
-        for field in label_fields:
-            label = getattr(rule, field)
-            if label is not None:
-                payload[field] = {"name": label}
-        return payload
 
     def build_ad_payload(self, creative_id: str) -> Dict[str, Any]:
         return {
