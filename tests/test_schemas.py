@@ -108,7 +108,7 @@ def test_adcreate_parses_labeled_text_assets_and_rule_references():
             "image_assets": [{"hash": "portrait", "label": "feed_4x5"}],
             "asset_customization_rules": [
                 {
-                    "customization_spec": {"publisher_platforms": ["facebook"]},
+                    "customization_spec": {},
                     "image_label": "feed_4x5",
                     "title_label": "headline_feed",
                     "body_label": "body_feed",
@@ -352,6 +352,14 @@ def test_adcreate_labeled_text_and_rule_selectors_serialize_exactly():
                 "description_label": "description_story",
                 "priority": 2,
             },
+            {
+                "customization_spec": {},
+                "image_label": "image_feed",
+                "title_label": "headline_feed",
+                "body_label": "body_feed",
+                "description_label": "description_feed",
+                "priority": 3,
+            },
         ],
     )
 
@@ -403,6 +411,14 @@ def test_adcreate_labeled_text_and_rule_selectors_serialize_exactly():
                 "title_label": {"name": "headline_story"},
                 "body_label": {"name": "body_story"},
                 "description_label": {"name": "description_story"},
+            },
+            {
+                "customization_spec": {},
+                "priority": 3,
+                "image_label": {"name": "image_feed"},
+                "title_label": {"name": "headline_feed"},
+                "body_label": {"name": "body_feed"},
+                "description_label": {"name": "description_feed"},
             },
         ],
         "ad_formats": ["SINGLE_IMAGE"],
@@ -532,6 +548,58 @@ def test_adcreate_rejects_ambiguous_multiple_unlabeled_text_with_placement_rules
         ),
     ):
         AdCreateConfig.model_validate(values)
+
+
+def test_adcreate_requires_default_rule_for_placement_specific_text():
+    with pytest.raises(ValueError, match="exactly one default"):
+        AdCreateConfig(
+            adset_id="adset_1",
+            name="Missing Default Rule Ad",
+            page_id="page_1",
+            destination_url="https://example.com",
+            body_assets=[
+                {"text": "Feed body", "label": "body_feed"},
+                {"text": "Story body", "label": "body_story"},
+            ],
+            image_assets=[{"hash": "portrait", "label": "image_feed"}],
+            asset_customization_rules=[
+                {
+                    "customization_spec": {"publisher_platforms": ["facebook"]},
+                    "image_label": "image_feed",
+                    "body_label": "body_feed",
+                    "priority": 1,
+                }
+            ],
+        )
+
+
+def test_adcreate_requires_default_rule_to_have_lowest_priority():
+    with pytest.raises(ValueError, match="largest priority number"):
+        AdCreateConfig(
+            adset_id="adset_1",
+            name="Misordered Default Rule Ad",
+            page_id="page_1",
+            destination_url="https://example.com",
+            body_assets=[
+                {"text": "Feed body", "label": "body_feed"},
+                {"text": "Story body", "label": "body_story"},
+            ],
+            image_assets=[{"hash": "portrait", "label": "image_feed"}],
+            asset_customization_rules=[
+                {
+                    "customization_spec": {"publisher_platforms": ["facebook"]},
+                    "image_label": "image_feed",
+                    "body_label": "body_feed",
+                    "priority": 2,
+                },
+                {
+                    "customization_spec": {},
+                    "image_label": "image_feed",
+                    "body_label": "body_story",
+                    "priority": 1,
+                },
+            ],
+        )
 
 
 def test_adcreate_accepts_single_unlabeled_text_for_each_type_with_placement_rules():
@@ -710,6 +778,12 @@ asset_customization_rules:
     body_label: body_feed
     description_label: description_feed
     priority: 1
+  - customization_spec: {}
+    image_label: feed_4x5
+    title_label: headline_feed
+    body_label: body_feed
+    description_label: description_feed
+    priority: 2
 """.strip()
     )
 

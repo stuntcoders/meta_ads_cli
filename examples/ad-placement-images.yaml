@@ -56,5 +56,11 @@ asset_customization_rules:
     body_label: "body_story"
     description_label: "description_feed"
     priority: 3
+  - customization_spec: {}
+    image_label: "feed_4x5"
+    title_label: "headline_feed"
+    body_label: "body_feed"
+    description_label: "description_feed"
+    priority: 4
 call_to_action_type: "LEARN_MORE"
 status: "PAUSED"

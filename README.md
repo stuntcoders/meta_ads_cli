@@ -416,8 +416,10 @@ and `description_assets`, whose entries contain nonblank `text` and unique `labe
 selects them through `title_label`, `body_label`, and `description_label`. The generated payload
 adds `adlabels` to each text asset and emits every selector in Meta's `{\"name\": ...}` shape.
 When placement rules are present, multiple values of a text type must use these labeled assets and
-every rule must select exactly one label for that type; the CLI rejects ambiguous multiple
-unlabeled strings before contacting Meta. A single unlabeled headline, body, or description remains
+every rule must select exactly one label for that type. Meta also requires exactly one final default
+rule with an empty `customization_spec`; give it the largest priority number and select the fallback
+image and copy labels. The CLI rejects ambiguous or incomplete rules before contacting Meta. A
+single unlabeled headline, body, or description remains
 compatible with placement rules. Ordinary dynamic multi-copy ads without placement rules retain
 the existing `headlines`, `bodies`, and `descriptions` behavior.
 
@@ -432,7 +434,7 @@ meta-cli ads create \
   --body-assets-json '[{"text":"Feed body","label":"body_feed"},{"text":"Story body","label":"body_story"}]' \
   --description-assets-json '[{"text":"Feed description","label":"description_feed"},{"text":"Story description","label":"description_story"}]' \
   --image-assets-json '[{"hash":"hash_4x5","label":"feed_4x5"},{"hash":"hash_9x16","label":"stories_9x16"}]' \
-  --asset-customization-rules-json '[{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["feed"],"instagram_positions":["stream"]},"image_label":"feed_4x5","title_label":"headline_feed","body_label":"body_feed","description_label":"description_feed","priority":1},{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["story","facebook_reels"],"instagram_positions":["story","reels"]},"image_label":"stories_9x16","title_label":"headline_story","body_label":"body_story","description_label":"description_story","priority":2}]' \
+  --asset-customization-rules-json '[{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["feed"],"instagram_positions":["stream"]},"image_label":"feed_4x5","title_label":"headline_feed","body_label":"body_feed","description_label":"description_feed","priority":1},{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["story","facebook_reels"],"instagram_positions":["story","reels"]},"image_label":"stories_9x16","title_label":"headline_story","body_label":"body_story","description_label":"description_story","priority":2},{"customization_spec":{},"image_label":"feed_4x5","title_label":"headline_feed","body_label":"body_feed","description_label":"description_feed","priority":3}]' \
   --dry-run --json
 ```
 

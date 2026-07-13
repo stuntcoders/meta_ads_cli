@@ -226,6 +226,34 @@ class AdCreateConfig(BaseModel):
                         f"multiple {text_type}_assets are provided"
                     )
 
+        has_text_selectors = any(
+            rule.title_label or rule.body_label or rule.description_label
+            for rule in self.asset_customization_rules
+        )
+        if has_text_selectors:
+            default_rules = [
+                rule for rule in self.asset_customization_rules if not rule.customization_spec
+            ]
+            if len(default_rules) != 1:
+                raise ValueError(
+                    "Placement-specific text selectors require exactly one default "
+                    "asset_customization_rule with an empty customization_spec"
+                )
+            priorities = [
+                rule.priority
+                for rule in self.asset_customization_rules
+                if rule.priority is not None
+            ]
+            default_priority = default_rules[0].priority
+            if priorities and (
+                len(priorities) != len(self.asset_customization_rules)
+                or default_priority != max(priorities)
+            ):
+                raise ValueError(
+                    "The default asset_customization_rule must have the lowest priority "
+                    "(the largest priority number)"
+                )
+
         if self.existing_creative_id:
             return self
         if self.image_hashes and self.video_id:
