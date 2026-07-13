@@ -30,6 +30,11 @@ dev = [
 [project.scripts]
 meta-cli = "meta_cli.app:run"
 
+[tool.hatch.build]
+exclude = [
+  "/tmp/pi-long-task/",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/meta_cli"]
 

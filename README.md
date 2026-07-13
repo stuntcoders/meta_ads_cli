@@ -507,7 +507,11 @@ Ensure:
 ```bash
 make lint
 make test
+make build
 ```
+
+Builds write distributions to `dist/`. Repository-local Pi long-task state under
+`tmp/pi-long-task/` is ignored and explicitly excluded from package archives.
 
 Project layout:
 
