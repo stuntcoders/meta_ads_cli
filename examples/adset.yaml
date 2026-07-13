@@ -4,6 +4,7 @@ daily_budget: 5000
 billing_event: "IMPRESSIONS"
 optimization_goal: "LINK_CLICKS"
 bid_strategy: "LOWEST_COST_WITHOUT_CAP"
+is_dynamic_creative: false
 start_time: "2026-03-22T00:00:00-0700"
 status: "PAUSED"
 targeting:

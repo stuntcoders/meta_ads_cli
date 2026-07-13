@@ -65,6 +65,18 @@ def test_adset_to_payload_excludes_none():
     assert "lifetime_budget" not in payload
 
 
+def test_adset_to_payload_supports_dynamic_creative():
+    cfg = AdSetCreateConfig(
+        campaign_id="123",
+        name="Dynamic creative ad set",
+        daily_budget=1000,
+        targeting={"geo_locations": {"countries": ["US"]}},
+        is_dynamic_creative=True,
+    )
+
+    assert cfg.to_payload()["is_dynamic_creative"] is True
+
+
 def test_adcreate_asset_feed_payload_for_multi_text():
     cfg = AdCreateConfig(
         adset_id="adset_1",

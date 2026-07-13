@@ -395,6 +395,12 @@ versions require `is_adset_budget_sharing_enabled`; set it in YAML or use
 inspect the exact payload without loading credentials or making a Meta SDK request; add `--json`
 for machine-readable output.
 
+Ad-set creation accepts `is_dynamic_creative: true` in YAML or `--dynamic-creative` on the command
+line. Enable it when ads under that ad set will use an `asset_feed_spec` with multiple images,
+headlines, bodies, or descriptions. Meta requires dynamic-creative ads to be created under a
+dynamic-creative ad set, and this setting should be chosen when the ad set is created. The flag is
+optional, so existing non-dynamic ad-set behavior is unchanged.
+
 For Instagram delivery, set `instagram_user_id` in ad YAML or pass `--instagram-user-id`; use the
 legacy `instagram_actor_id` / `--instagram-actor-id` only for accounts that still expose an actor
 ID. If ad YAML or command flags omit `page_id` / `--page-id` and the Instagram identity, `ads create`

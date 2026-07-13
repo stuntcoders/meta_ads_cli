@@ -47,6 +47,7 @@ class FakeAdSetClient:
             "name": "A1",
             "status": "PAUSED",
             "campaign_id": "123",
+            "is_dynamic_creative": True,
             "promoted_object": {
                 "pixel_id": "pixel_456",
                 "custom_event_type": "COMPLETE_REGISTRATION",
@@ -101,6 +102,7 @@ def test_adsets_get_json(monkeypatch):
     assert fake.last_get_adset["adset_id"] == "a1"
     assert "targeting" in fake.last_get_adset["fields"]
     assert "promoted_object" in fake.last_get_adset["fields"]
+    assert "is_dynamic_creative" in fake.last_get_adset["fields"]
     assert "learning_stage_info" in fake.last_get_adset["fields"]
     assert "issues_info" in fake.last_get_adset["fields"]
 
@@ -131,12 +133,15 @@ def test_adsets_create_dry_run_with_flags(monkeypatch):
             "1000",
             "--targeting-json",
             '{"geo_locations": {"countries": ["US"]}}',
+            "--dynamic-creative",
             "--dry-run",
             "--json",
         ],
     )
     assert result.exit_code == 0
-    assert '"campaign_id": "123"' in result.stdout
+    payload = json.loads(result.stdout)["payload"]
+    assert payload["campaign_id"] == "123"
+    assert payload["is_dynamic_creative"] is True
 
 
 def test_adsets_update_targeting_dry_run_json_does_not_build_client(monkeypatch):
