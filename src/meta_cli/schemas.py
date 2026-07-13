@@ -136,6 +136,15 @@ class AdCreateConfig(BaseModel):
             names = ", ".join(sorted(unknown_labels))
             raise ValueError(f"Customization rule image_label references unknown label(s): {names}")
 
+        if self.asset_customization_rules and any(
+            len(values) > 1 for values in (self.headlines, self.bodies, self.descriptions)
+        ):
+            raise ValueError(
+                "Meta API v22+ does not support multiple text variants with "
+                "asset_customization_rules; use one text value per type or use "
+                "image_hashes without placement rules for multi-copy asset feeds"
+            )
+
         if self.existing_creative_id:
             return self
         if self.image_hashes and self.video_id:

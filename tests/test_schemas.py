@@ -140,6 +140,19 @@ def test_adcreate_placement_images_build_labeled_asset_feed_payload():
     assert feed["ad_formats"] == ["SINGLE_IMAGE"]
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"headlines": ["Headline one", "Headline two"]},
+        {"bodies": ["Body one", "Body two"]},
+        {"descriptions": ["Description one", "Description two"]},
+    ],
+)
+def test_adcreate_rejects_multiple_text_with_placement_rules(overrides):
+    with pytest.raises(ValueError, match="Meta API v22\\+ does not support"):
+        _placement_ad_config(**overrides)
+
+
 def test_adcreate_legacy_single_image_payload_is_unchanged():
     cfg = AdCreateConfig(
         adset_id="adset_1",

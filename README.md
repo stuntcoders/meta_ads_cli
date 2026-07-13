@@ -425,9 +425,12 @@ meta-cli ads create \
 
 `image_assets` requires at least one customization rule, and customization rules cannot be used
 without `image_assets`. Blank or duplicate asset labels and rules that reference unknown labels
-are rejected. `image_hashes` and `image_assets` are mutually exclusive. Existing
-`image_hashes` behavior is unchanged, including the single-image story payload and multi-image
-asset-feed payload.
+are rejected. Meta API v22+ no longer supports segment asset customization for multiple text
+variants, so placement rules accept at most one headline, body, and description. For multiple copy
+variants plus several uploaded image ratios, use `image_hashes` without
+`asset_customization_rules`; Meta then optimizes the asset-feed combinations. `image_hashes` and
+`image_assets` are mutually exclusive. Existing `image_hashes` behavior is unchanged, including
+the single-image story payload and multi-image asset-feed payload.
 
 `adsets update-targeting` replaces the complete targeting object, so first export or retain the
 existing targeting and include every constraint and placement that must remain. Supply exactly one
