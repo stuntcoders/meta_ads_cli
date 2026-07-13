@@ -4,9 +4,11 @@ import importlib.util
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def _load_module():
-    module_path = Path("scripts/generate_brew_formula.py")
+    module_path = ROOT / "scripts/generate_brew_formula.py"
     spec = importlib.util.spec_from_file_location("generate_brew_formula", module_path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -73,3 +75,11 @@ def test_detect_build_dependencies_for_pydantic_core():
     ]
     deps = mod.detect_build_dependencies(reqs)
     assert 'depends_on "rust" => :build' in deps
+
+
+def test_production_lock_preserves_formula_build_dependencies():
+    mod = _load_module()
+    requirements = mod.parse_requirements_lock(ROOT / "requirements.lock")
+
+    assert requirements
+    assert 'depends_on "rust" => :build' in mod.detect_build_dependencies(requirements)

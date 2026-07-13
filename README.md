@@ -504,14 +504,43 @@ Ensure:
 
 ## Development
 
+Use Python 3.12 and install the exact development dependency set for repeatable validation:
+
 ```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+make install-lock
 make lint
 make test
-make build
+python -m build
 ```
 
-Builds write distributions to `dist/`. Repository-local Pi long-task state under
-`tmp/pi-long-task/` is ignored and explicitly excluded from package archives.
+Builds write the source distribution and wheel to `dist/`; inspect both archives before publishing.
+
+`requirements.in` and `requirements-dev.in` are the production and development dependency inputs.
+Their generated locks must stay synchronized: `requirements-dev.lock` includes the exact production
+pins from `requirements.lock`. Regenerate both with Python 3.12 after changing either input:
+
+```bash
+python -m pip install "pip-tools>=7.4.1"
+make lock
+git diff -- requirements.lock requirements-dev.lock
+```
+
+Audit both lock files in an isolated environment before release (install `pip-audit` only in that
+environment, not as an application dependency):
+
+```bash
+AUDIT_DIR="$(mktemp -d)"
+python3.12 -m venv "$AUDIT_DIR/venv"
+source "$AUDIT_DIR/venv/bin/activate"
+python -m pip install --upgrade pip pip-audit
+python -m pip_audit -r requirements.lock
+python -m pip_audit -r requirements-dev.lock
+deactivate
+rm -rf "$AUDIT_DIR"
+```
 
 Project layout:
 
@@ -522,5 +551,27 @@ Project layout:
 - `scripts/` — build/release helpers
 - `.github/workflows/` — release + Homebrew automation
 - `AGENTS.md` — coding-agent operating instructions
+
+### Release and Homebrew automation
+
+Run **Release and Publish** manually in GitHub Actions. Supply the version and source branch; by
+default the workflow validates with Ruff and pytest, updates `pyproject.toml` and
+`src/meta_cli/__init__.py`, pushes the version commit and tag, and publishes a GitHub release. A
+published release triggers **Homebrew Formula PR**, which generates formula resources from the
+production `requirements.lock` and opens a pull request in the tap repository.
+
+Configure these GitHub repository settings before releasing:
+
+- Secret `HOMEBREW_TAP_TOKEN` — a token that can read and push branches to the tap repository and
+  open pull requests there.
+- Variable `HOMEBREW_TAP_REPO` — required tap repository in `owner/repository` form.
+- Variables `HOMEBREW_FORMULA_NAME`, `HOMEBREW_FORMULA_PATH`, and
+  `HOMEBREW_TAP_BASE_BRANCH` — optional overrides; defaults are `meta-ads-cli`,
+  `Formula/meta-ads-cli.rb`, and the tap repository's default branch.
+
+The tap repository must already have an initial commit and default branch. The release workflow can
+also create a draft or prerelease, skip its version-file bump, or skip validation through explicit
+workflow inputs. The Homebrew workflow can be rerun manually for a release tag and optional tap
+repository override.
 
 For production workflows, create in `PAUSED`, verify in Ads Manager, then explicitly resume.
