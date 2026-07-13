@@ -14,6 +14,7 @@ class FakeAdSetClient:
         self.last_list_kwargs = {}
         self.last_get_adset = None
         self.last_targeting_update = None
+        self.last_budget_update = None
 
     def list_adsets(
         self,
@@ -59,6 +60,10 @@ class FakeAdSetClient:
 
     def update_adset_status(self, adset_id, status):
         return {"id": adset_id, "status": status}
+
+    def update_adset_budget(self, adset_id, budget):
+        self.last_budget_update = {"adset_id": adset_id, "budget": budget}
+        return {"id": adset_id}
 
     def update_adset_targeting(self, adset_id, targeting):
         self.last_targeting_update = {"adset_id": adset_id, "targeting": targeting}
@@ -142,6 +147,61 @@ def test_adsets_create_dry_run_with_flags(monkeypatch):
     payload = json.loads(result.stdout)["payload"]
     assert payload["campaign_id"] == "123"
     assert payload["is_dynamic_creative"] is True
+
+
+def test_adsets_update_budget_dry_run_does_not_build_client(monkeypatch):
+    def fail_build_client(*_args):
+        raise AssertionError("dry-run must not build an SDK client")
+
+    monkeypatch.setattr("meta_cli.commands.adsets.build_client", fail_build_client)
+    result = runner.invoke(
+        app,
+        [
+            "adsets",
+            "update-budget",
+            "a1",
+            "--daily-budget",
+            "500",
+            "--yes",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["budget"] == {"daily_budget": 500}
+
+
+def test_adsets_update_budget_calls_sdk(monkeypatch):
+    fake = FakeAdSetClient()
+    monkeypatch.setattr("meta_cli.commands.adsets.build_client", lambda *_: fake)
+    result = runner.invoke(
+        app,
+        [
+            "adsets",
+            "update-budget",
+            "a1",
+            "--lifetime-budget",
+            "5000",
+            "--yes",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert fake.last_budget_update == {
+        "adset_id": "a1",
+        "budget": {"lifetime_budget": 5000},
+    }
+
+
+def test_adsets_update_budget_requires_exactly_one_budget():
+    result = runner.invoke(
+        app, ["adsets", "update-budget", "a1", "--yes", "--json"]
+    )
+
+    assert result.exit_code == 1
+    assert "exactly one" in json.loads(result.stdout)["error"]
 
 
 def test_adsets_update_targeting_dry_run_json_does_not_build_client(monkeypatch):

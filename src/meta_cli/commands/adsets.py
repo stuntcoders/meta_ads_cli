@@ -192,6 +192,45 @@ def create_adset(
         handle_cli_error(exc, as_json=json_output)
 
 
+@app.command("update-budget")
+def update_adset_budget(
+    adset_id: str,
+    daily_budget: Optional[int] = typer.Option(
+        None, "--daily-budget", min=1, help="New daily budget in minor units"
+    ),
+    lifetime_budget: Optional[int] = typer.Option(
+        None, "--lifetime-budget", min=1, help="New lifetime budget in minor units"
+    ),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate and print payload only"),
+) -> None:
+    try:
+        if (daily_budget is None) == (lifetime_budget is None):
+            raise ValueError("Provide exactly one of --daily-budget or --lifetime-budget")
+        budget = (
+            {"daily_budget": daily_budget}
+            if daily_budget is not None
+            else {"lifetime_budget": lifetime_budget}
+        )
+        require_confirmation(f"Update budget for ad set {adset_id} to {budget}?", yes=yes)
+        if dry_run:
+            emit(
+                {"ok": True, "dry_run": True, "adset_id": adset_id, "budget": budget},
+                as_json=json_output,
+            )
+            return
+        client = build_client(auth_config)
+        result = client.update_adset_budget(adset_id, budget)
+        emit(
+            {"ok": True, "adset_id": adset_id, "budget": budget, "result": result},
+            as_json=json_output,
+        )
+    except (ConfigError, APIError, ValueError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
 @app.command("update-targeting")
 def update_adset_targeting(
     adset_id: str,

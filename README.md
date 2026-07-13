@@ -380,6 +380,7 @@ meta-cli media upload-video ./creative.mp4
 meta-cli campaigns create --config examples/campaign.yaml
 meta-cli campaigns create --name "Traffic Campaign" --objective OUTCOME_TRAFFIC --dry-run --json
 meta-cli adsets create --config examples/adset.yaml
+meta-cli adsets update-budget <adset_id> --daily-budget 5000 --yes
 meta-cli adsets update-targeting <adset_id> --targeting-file examples/adset.yaml --yes
 meta-cli ads create --config examples/ad.yaml
 meta-cli ads create --config examples/ad-placement-images.yaml --dry-run --json
@@ -400,6 +401,10 @@ line. Enable it when ads under that ad set will use an `asset_feed_spec` with mu
 headlines, bodies, or descriptions. Meta requires dynamic-creative ads to be created under a
 dynamic-creative ad set, and this setting should be chosen when the ad set is created. The flag is
 optional, so existing non-dynamic ad-set behavior is unchanged.
+
+`adsets update-budget` changes exactly one of `daily_budget` or `lifetime_budget` in minor currency
+units. It requires confirmation unless `--yes` is supplied and supports `--dry-run`. Fetch the ad
+set after every live budget update to verify the account, amount, and paused/active status.
 
 For Instagram delivery, set `instagram_user_id` in ad YAML or pass `--instagram-user-id`; use the
 legacy `instagram_actor_id` / `--instagram-actor-id` only for accounts that still expose an actor
