@@ -421,6 +421,19 @@ class MetaSDKClient:
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list all ads: {exc}") from exc
 
+    def search_targeting_interests(self, query: str) -> List[Dict[str, Any]]:
+        self.initialize()
+        try:
+            TargetingSearch = self._import_class(
+                "facebook_business.adobjects.targetingsearch", "TargetingSearch"
+            )
+            results = TargetingSearch.search(
+                params={"q": query, "type": "adinterest"}
+            )
+            return [self.to_dict(item) for item in results]
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to search targeting interests for '{query}': {exc}") from exc
+
     def search_targeting_locations(
         self, query: str, countries: List[str] | None = None
     ) -> List[Dict[str, Any]]:

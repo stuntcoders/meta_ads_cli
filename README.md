@@ -318,12 +318,14 @@ Human-readable output contains all fetched rows. JSON list output is an envelope
 ### Targeting discovery
 
 ```bash
+meta-cli targeting search-interests --query "Tutoring" --json
 meta-cli targeting search-locations --query "Gurugram" --country IN
 meta-cli targeting search-locations --query "Noida" --country IN --json
 ```
 
-Location search returns Meta's targeting key, name, type, country, and region so targeting updates can
-use valid platform identifiers instead of guessed city keys.
+Interest search returns Meta's interest IDs, names, audience-size bounds, and taxonomy paths.
+Location search returns Meta's targeting key, name, type, country, and region. Use these discovery
+commands so targeting updates rely on valid platform identifiers rather than guessed values.
 
 ### Insights
 
