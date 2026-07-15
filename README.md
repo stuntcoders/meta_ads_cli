@@ -386,6 +386,7 @@ meta-cli adsets update-budget <adset_id> --daily-budget 5000 --yes
 meta-cli adsets update-targeting <adset_id> --targeting-file examples/adset.yaml --yes
 meta-cli ads create --config examples/ad.yaml
 meta-cli ads create --config examples/ad-placement-images.yaml --dry-run --json
+meta-cli creatives create --config examples/ad.yaml --dry-run --json
 meta-cli ads update-creative <ad_id> --creative-id <creative_id> --yes
 ```
 
@@ -407,6 +408,11 @@ optional, so existing non-dynamic ad-set behavior is unchanged.
 `adsets update-budget` changes exactly one of `daily_budget` or `lifetime_budget` in minor currency
 units. It requires confirmation unless `--yes` is supplied and supports `--dry-run`. Fetch the ad
 set after every live budget update to verify the account, amount, and paused/active status.
+
+For creative-only replacement workflows, `creatives create --config` builds and creates the same
+creative payload that `ads create --config` would use, but it does not create a new ad. Use it with
+`--dry-run --json` to inspect the creative payload, then attach the returned creative ID to an
+existing ad with `ads update-creative`.
 
 For Instagram delivery, set `instagram_user_id` in ad YAML or pass `--instagram-user-id`; use the
 legacy `instagram_actor_id` / `--instagram-actor-id` only for accounts that still expose an actor
