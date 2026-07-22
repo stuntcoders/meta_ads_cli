@@ -48,6 +48,19 @@ def test_campaign_to_payload_supports_optional_budgets():
     assert "lifetime_budget" not in cfg.to_payload()
 
 
+def test_campaign_supports_cbo_bid_strategy():
+    cfg = CampaignCreateConfig(
+        name="CBO Campaign",
+        objective="OUTCOME_LEADS",
+        lifetime_budget=3500,
+        bid_strategy="LOWEST_COST_WITHOUT_CAP",
+    )
+    payload = cfg.to_payload()
+    assert payload["lifetime_budget"] == 3500
+    assert payload["bid_strategy"] == "LOWEST_COST_WITHOUT_CAP"
+    assert "bid_amount" not in payload
+
+
 def test_adset_requires_budget():
     with pytest.raises(ValueError):
         AdSetCreateConfig(campaign_id="123", name="Test")

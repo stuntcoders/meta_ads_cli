@@ -127,6 +127,14 @@ def create_campaign(
     lifetime_budget: Optional[int] = typer.Option(
         None, "--lifetime-budget", help="Lifetime budget in minor units"
     ),
+    bid_strategy: Optional[str] = typer.Option(
+        None,
+        "--bid-strategy",
+        help="Campaign bid strategy (e.g. LOWEST_COST_WITHOUT_CAP for CBO campaigns)",
+    ),
+    bid_amount: Optional[int] = typer.Option(
+        None, "--bid-amount", help="Campaign bid amount in minor units (for capped strategies)"
+    ),
     is_adset_budget_sharing_enabled: Optional[bool] = typer.Option(
         None,
         "--adset-budget-sharing/--no-adset-budget-sharing",
@@ -146,6 +154,8 @@ def create_campaign(
             special_ad_categories=special_ad_categories,
             daily_budget=daily_budget,
             lifetime_budget=lifetime_budget,
+            bid_strategy=bid_strategy,
+            bid_amount=bid_amount,
             is_adset_budget_sharing_enabled=is_adset_budget_sharing_enabled,
             status=status,
         )
@@ -253,6 +263,8 @@ def _build_campaign_config(
     lifetime_budget: Optional[int],
     is_adset_budget_sharing_enabled: Optional[bool],
     status: str,
+    bid_strategy: Optional[str] = None,
+    bid_amount: Optional[int] = None,
 ) -> CampaignCreateConfig:
     if config_path:
         return load_yaml_model(config_path, CampaignCreateConfig)
@@ -264,6 +276,8 @@ def _build_campaign_config(
         special_ad_categories=_split_csv(special_ad_categories),
         daily_budget=daily_budget,
         lifetime_budget=lifetime_budget,
+        bid_strategy=bid_strategy,
+        bid_amount=bid_amount,
         is_adset_budget_sharing_enabled=is_adset_budget_sharing_enabled,
         status=status,
     )

@@ -17,6 +17,8 @@ class CampaignCreateConfig(BaseModel):
     special_ad_categories: List[str] = Field(default_factory=list)
     daily_budget: Optional[int] = None
     lifetime_budget: Optional[int] = None
+    bid_strategy: Optional[str] = None
+    bid_amount: Optional[int] = None
     is_adset_budget_sharing_enabled: Optional[bool] = None
     status: str = "PAUSED"
 
