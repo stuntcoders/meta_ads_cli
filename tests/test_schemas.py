@@ -53,6 +53,20 @@ def test_adset_requires_budget():
         AdSetCreateConfig(campaign_id="123", name="Test")
 
 
+def test_adset_allows_no_budget_under_cbo():
+    cfg = AdSetCreateConfig(
+        campaign_id="123",
+        name="CBO ad set",
+        targeting={"geo_locations": {"countries": ["US"]}},
+        campaign_budget_optimization=True,
+    )
+    payload = cfg.to_payload()
+    assert "daily_budget" not in payload
+    assert "lifetime_budget" not in payload
+    # local hint must never be sent to the API
+    assert "campaign_budget_optimization" not in payload
+
+
 def test_adset_to_payload_excludes_none():
     cfg = AdSetCreateConfig(
         campaign_id="123",

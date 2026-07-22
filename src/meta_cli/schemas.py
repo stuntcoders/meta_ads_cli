@@ -50,15 +50,25 @@ class AdSetCreateConfig(BaseModel):
     status: str = "PAUSED"
     promoted_object: Optional[Dict[str, Any]] = None
     is_dynamic_creative: Optional[bool] = None
+    campaign_budget_optimization: bool = False
 
     @model_validator(mode="after")
     def validate_budget(self) -> "AdSetCreateConfig":
-        if self.daily_budget is None and self.lifetime_budget is None:
-            raise ValueError("One of daily_budget or lifetime_budget is required")
+        if (
+            not self.campaign_budget_optimization
+            and self.daily_budget is None
+            and self.lifetime_budget is None
+        ):
+            raise ValueError(
+                "One of daily_budget or lifetime_budget is required "
+                "(set campaign_budget_optimization: true for CBO ad sets whose "
+                "budget lives on the campaign)"
+            )
         return self
 
     def to_payload(self) -> Dict[str, Any]:
-        payload = self.model_dump(exclude_none=True)
+        # campaign_budget_optimization is a local hint only; never sent to the API.
+        payload = self.model_dump(exclude_none=True, exclude={"campaign_budget_optimization"})
         return payload
 
 

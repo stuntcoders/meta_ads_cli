@@ -157,6 +157,11 @@ def create_adset(
         "--dynamic-creative/--no-dynamic-creative",
         help="Enable or disable dynamic creative for the ad set",
     ),
+    campaign_budget_optimization: bool = typer.Option(
+        False,
+        "--campaign-budget-optimization/--no-campaign-budget-optimization",
+        help="Ad set inherits budget from a CBO campaign; skip the ad-set budget requirement",
+    ),
     status: str = typer.Option("PAUSED", "--status", help="Ad set status"),
     auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Validate and print payload only"),
@@ -179,6 +184,7 @@ def create_adset(
             promoted_object_json,
             is_dynamic_creative,
             status,
+            campaign_budget_optimization,
         )
         payload = adset_config.to_payload()
         if dry_run:
@@ -309,6 +315,7 @@ def _build_adset_config(
     promoted_object_json: Optional[str],
     is_dynamic_creative: Optional[bool],
     status: str,
+    campaign_budget_optimization: bool = False,
 ) -> AdSetCreateConfig:
     if config_path:
         return load_yaml_model(config_path, AdSetCreateConfig)
@@ -333,6 +340,7 @@ def _build_adset_config(
         promoted_object=promoted_object,
         is_dynamic_creative=is_dynamic_creative,
         status=status,
+        campaign_budget_optimization=campaign_budget_optimization,
     )
 
 
