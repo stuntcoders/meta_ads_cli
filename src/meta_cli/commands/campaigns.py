@@ -20,6 +20,14 @@ CAMPAIGN_FIELDS = [
     "lifetime_budget",
 ]
 
+CAMPAIGN_DELETE_FIELDS = [
+    "id",
+    "name",
+    "status",
+    "configured_status",
+    "effective_status",
+]
+
 CAMPAIGN_DETAIL_FIELDS = [
     "id",
     "name",
@@ -173,6 +181,60 @@ def resume_campaign(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show action without updating"),
 ) -> None:
     _change_status(campaign_id, "ACTIVE", auth_config, yes, json_output, dry_run)
+
+
+@app.command("delete")
+def delete_campaign(
+    campaign_id: str,
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate without deleting"),
+) -> None:
+    """Permanently delete a paused campaign."""
+    try:
+        client = build_client(auth_config)
+        campaign = client.get_campaign_details(campaign_id, fields=CAMPAIGN_DELETE_FIELDS)
+        configured_status = campaign.get("configured_status") or campaign.get("status")
+        if configured_status != "PAUSED":
+            raise ConfigError(
+                f"Refusing to delete campaign {campaign_id}: configured status is "
+                f"{configured_status or 'unknown'}, not PAUSED. Pause it first."
+            )
+
+        if dry_run:
+            emit(
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "action": "delete",
+                    "campaign_id": campaign_id,
+                    "campaign": campaign,
+                    "irreversible": True,
+                },
+                as_json=json_output,
+            )
+            return
+
+        campaign_name = campaign.get("name") or campaign_id
+        require_confirmation(
+            f"Permanently delete paused campaign '{campaign_name}' ({campaign_id})? "
+            "This cannot be undone.",
+            yes=yes,
+        )
+        result = client.delete_campaign(campaign_id)
+        emit(
+            {
+                "ok": True,
+                "deleted": True,
+                "campaign_id": campaign_id,
+                "previous_campaign": campaign,
+                "result": result,
+            },
+            as_json=json_output,
+        )
+    except (ConfigError, APIError) as exc:
+        handle_cli_error(exc, as_json=json_output)
 
 
 def _split_csv(value: Optional[str]) -> List[str]:

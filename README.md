@@ -462,11 +462,20 @@ unless `--yes` is passed and supports `--dry-run`.
 ```bash
 meta-cli campaigns pause <campaign_id>
 meta-cli campaigns resume <campaign_id>
+meta-cli campaigns delete <campaign_id> --dry-run --json
+meta-cli campaigns delete <campaign_id> --yes --json
 meta-cli adsets pause <adset_id>
 meta-cli adsets resume <adset_id>
 meta-cli ads pause <ad_id>
 meta-cli ads resume <ad_id>
 ```
+
+`campaigns delete` is deliberately limited to campaigns whose configured status is `PAUSED`.
+The command fetches and validates the current campaign before acting, requires confirmation unless
+`--yes` is passed, and supports a read-only `--dry-run` that emits the campaign and proposed action.
+Deletion cannot be undone and also removes the campaign's child objects from normal management
+views. Meta retains historical delivery data for reporting, but export any evidence you need before
+deletion because the campaign cannot be restored.
 
 ---
 
@@ -487,8 +496,9 @@ Use returned media IDs in ad config:
 ## Safety notes
 
 - New campaigns, ad sets, and ads default to `PAUSED`
-- Use `--dry-run` before real create/update operations
-- Pause/resume requires confirmation unless `--yes` is passed
+- Use `--dry-run` before real create/update/delete operations
+- Pause/resume and campaign deletion require confirmation unless `--yes` is passed
+- Campaign deletion refuses non-paused campaigns and cannot be undone
 - Validate auth (`meta-cli auth test`) before operations
 
 ---

@@ -640,6 +640,25 @@ class MetaSDKClient:
             raise APIError(f"Failed to update campaign {campaign_id}: {exc}") from exc
         return self.to_dict(result)
 
+    def delete_campaign(self, campaign_id: str) -> Dict[str, Any]:
+        self.initialize()
+        campaign = self.get_campaign(campaign_id)
+        try:
+            result = campaign.api_delete()
+        except Exception as exc:  # noqa: BLE001
+            message = self._redact_exception(exc)
+            raise APIError(f"Failed to delete campaign {campaign_id}: {message}") from exc
+
+        if isinstance(result, bool):
+            if not result:
+                raise APIError(f"Meta did not confirm deletion of campaign {campaign_id}")
+            return {"success": True}
+
+        payload = self.to_dict(result)
+        if payload.get("success") is False:
+            raise APIError(f"Meta did not confirm deletion of campaign {campaign_id}")
+        return payload
+
     def update_adset_status(self, adset_id: str, status: str) -> Dict[str, Any]:
         self.initialize()
         adset = self.get_adset(adset_id)

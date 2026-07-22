@@ -5,6 +5,7 @@ import json
 from typer.testing import CliRunner
 
 from meta_cli.app import app
+from meta_cli.exceptions import APIError
 
 runner = CliRunner()
 
@@ -14,6 +15,8 @@ class FakeClient:
         self.last_list_kwargs = {}
         self.last_get_campaign = None
         self.last_create_payload = None
+        self.last_deleted_campaign = None
+        self.campaign_status = "PAUSED"
 
     def list_campaigns(
         self,
@@ -53,7 +56,9 @@ class FakeClient:
         return {
             "id": campaign_id,
             "name": "Camp 1",
-            "status": "PAUSED",
+            "status": self.campaign_status,
+            "configured_status": self.campaign_status,
+            "effective_status": self.campaign_status,
             "objective": "OUTCOME_LEADS",
         }
 
@@ -63,6 +68,10 @@ class FakeClient:
 
     def update_campaign_status(self, campaign_id, status):
         return {"id": campaign_id, "status": status}
+
+    def delete_campaign(self, campaign_id):
+        self.last_deleted_campaign = campaign_id
+        return {"success": True}
 
 
 def test_campaigns_list_json(monkeypatch):
@@ -184,3 +193,92 @@ def test_campaign_pause_dry_run(monkeypatch):
     result = runner.invoke(app, ["campaigns", "pause", "123", "--yes", "--dry-run", "--json"])
     assert result.exit_code == 0
     assert '"dry_run": true' in result.stdout.lower()
+
+
+def test_campaign_delete_dry_run_reads_paused_campaign_without_deleting(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(app, ["campaigns", "delete", "123", "--dry-run", "--json"])
+
+    assert result.exit_code == 0
+    output = json.loads(result.stdout)
+    assert output == {
+        "ok": True,
+        "dry_run": True,
+        "action": "delete",
+        "campaign_id": "123",
+        "campaign": {
+            "id": "123",
+            "name": "Camp 1",
+            "status": "PAUSED",
+            "configured_status": "PAUSED",
+            "effective_status": "PAUSED",
+            "objective": "OUTCOME_LEADS",
+        },
+        "irreversible": True,
+    }
+    assert fake.last_deleted_campaign is None
+    assert fake.last_get_campaign["fields"] == [
+        "id",
+        "name",
+        "status",
+        "configured_status",
+        "effective_status",
+    ]
+
+
+def test_campaign_delete_live_success(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(app, ["campaigns", "delete", "123", "--yes", "--json"])
+
+    assert result.exit_code == 0
+    output = json.loads(result.stdout)
+    assert output["ok"] is True
+    assert output["deleted"] is True
+    assert output["campaign_id"] == "123"
+    assert output["previous_campaign"]["configured_status"] == "PAUSED"
+    assert output["result"] == {"success": True}
+    assert fake.last_deleted_campaign == "123"
+
+
+def test_campaign_delete_confirmation_can_cancel(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(app, ["campaigns", "delete", "123"], input="n\n")
+
+    assert result.exit_code == 1
+    assert "cannot be undone" in result.stdout.lower()
+    assert fake.last_deleted_campaign is None
+
+
+def test_campaign_delete_refuses_non_paused_campaign(monkeypatch):
+    fake = FakeClient()
+    fake.campaign_status = "ACTIVE"
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(app, ["campaigns", "delete", "123", "--yes", "--json"])
+
+    assert result.exit_code == 1
+    output = json.loads(result.stdout)
+    assert output["ok"] is False
+    assert "not PAUSED" in output["error"]
+    assert fake.last_deleted_campaign is None
+
+
+def test_campaign_delete_surfaces_api_error(monkeypatch):
+    fake = FakeClient()
+
+    def fail_delete(_campaign_id):
+        raise APIError("deletion failed")
+
+    fake.delete_campaign = fail_delete
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(app, ["campaigns", "delete", "123", "--yes", "--json"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == {"ok": False, "error": "deletion failed"}
