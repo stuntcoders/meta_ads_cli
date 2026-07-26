@@ -292,6 +292,8 @@ meta-cli ads list --adset-id <adset_id>
 meta-cli ads list --all
 meta-cli ads get <ad_id>
 meta-cli creatives get <creative_id>
+meta-cli custom-conversions list
+meta-cli custom-conversions get <custom_conversion_id>
 ```
 
 `creatives get` includes the object story spec and asset feed spec, which is useful for confirming
@@ -300,7 +302,9 @@ Facebook Page and Instagram actor identities plus placement-specific creative ru
 `campaigns get`, `adsets get`, and `ads get` include Meta delivery diagnostics when available,
 including configured/effective status, issues, recommendations, remaining budget, learning-stage
 information, review feedback, and failed delivery checks. `adsets get` also includes the
-`promoted_object`, including pixel and conversion-event optimization data.
+`promoted_object`, including pixel and conversion-event optimization data. Custom-conversion reads
+include the event source, rule, category, availability, and first/last fired timestamps when Meta
+supplies them.
 
 List commands follow every Meta API page by default, so `--limit` controls rows per request rather
 than the total rows returned. Use `--max-pages <n>` to cap requests or `--no-paginate` to fetch one
@@ -384,6 +388,13 @@ meta-cli campaigns create --name "Traffic Campaign" --objective OUTCOME_TRAFFIC 
 meta-cli adsets create --config examples/adset.yaml
 meta-cli adsets update-budget <adset_id> --daily-budget 5000 --yes
 meta-cli adsets update-targeting <adset_id> --targeting-file examples/adset.yaml --yes
+meta-cli custom-conversions create \
+  --name "Student chat initiated" \
+  --event-source-id <pixel_id> \
+  --rule-json '{"event":{"eq":"Student chat initiated"}}' \
+  --custom-event-type CONTACT \
+  --action-source-type WEBSITE \
+  --dry-run --yes --json
 meta-cli ads create --config examples/ad.yaml
 meta-cli ads create --config examples/ad-placement-images.yaml --dry-run --json
 meta-cli creatives create --config examples/ad.yaml --dry-run --json
@@ -408,6 +419,13 @@ optional, so existing non-dynamic ad-set behavior is unchanged.
 `adsets update-budget` changes exactly one of `daily_budget` or `lifetime_budget` in minor currency
 units. It requires confirmation unless `--yes` is supplied and supports `--dry-run`. Fetch the ad
 set after every live budget update to verify the account, amount, and paused/active status.
+
+`custom-conversions create` creates an account custom conversion from an exact JSON rule. Supply the
+pixel/data-source ID, a Meta conversion category such as `CONTACT`, and optionally an action source
+such as `WEBSITE`. The command requires confirmation unless `--yes` is supplied and supports a
+credential-free `--dry-run`. Use `custom-conversions list` first to avoid duplicates, then fetch the
+returned ID with `custom-conversions get` and verify availability and event timestamps before using
+that ID as an ad set's `promoted_object.custom_conversion_id`.
 
 For creative-only replacement workflows, `creatives create --config` builds and creates the same
 creative payload that `ads create --config` would use, but it does not create a new ad. Use it with
@@ -497,7 +515,7 @@ Use returned media IDs in ad config:
 
 - New campaigns, ad sets, and ads default to `PAUSED`
 - Use `--dry-run` before real create/update/delete operations
-- Pause/resume and campaign deletion require confirmation unless `--yes` is passed
+- Pause/resume, custom-conversion creation, and campaign deletion require confirmation unless `--yes` is passed
 - Campaign deletion refuses non-paused campaigns and cannot be undone
 - Validate auth (`meta-cli auth test`) before operations
 

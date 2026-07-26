@@ -179,6 +179,12 @@ class MetaSDKClient:
         )
         return AdCreative(creative_id)
 
+    def get_custom_conversion(self, custom_conversion_id: str):
+        CustomConversion = self._import_class(
+            "facebook_business.adobjects.customconversion", "CustomConversion"
+        )
+        return CustomConversion(custom_conversion_id)
+
     def get_video(self, video_id: str):
         AdVideo = self._import_class("facebook_business.adobjects.advideo", "AdVideo")
         return AdVideo(video_id)
@@ -226,6 +232,19 @@ class MetaSDKClient:
             result = creative.api_get(fields=fields)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to fetch creative {creative_id}: {exc}") from exc
+        return self.to_dict(result)
+
+    def get_custom_conversion_details(
+        self, custom_conversion_id: str, fields: List[str]
+    ) -> Dict[str, Any]:
+        self.initialize()
+        custom_conversion = self.get_custom_conversion(custom_conversion_id)
+        try:
+            result = custom_conversion.api_get(fields=fields)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                f"Failed to fetch custom conversion {custom_conversion_id}: {exc}"
+            ) from exc
         return self.to_dict(result)
 
     @staticmethod
@@ -421,6 +440,32 @@ class MetaSDKClient:
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to list all ads: {exc}") from exc
 
+    def list_custom_conversions(
+        self,
+        fields: List[str],
+        limit: int = 100,
+        after: str | None = None,
+        before: str | None = None,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+        include_paging: bool = False,
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
+        self.initialize()
+        account = self.get_ad_account()
+        params = self._with_pagination_params({"limit": limit}, after, before)
+        try:
+            cursor = account.get_custom_conversions(fields=fields, params=params)
+            rows, paging = self._collect_cursor(
+                cursor,
+                auto_paginate=auto_paginate,
+                max_pages=max_pages,
+            )
+            if include_paging:
+                return self._paginated_result(rows, paging)
+            return rows
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to list custom conversions: {exc}") from exc
+
     def search_targeting_interests(self, query: str) -> List[Dict[str, Any]]:
         self.initialize()
         try:
@@ -611,6 +656,15 @@ class MetaSDKClient:
             result = account.create_ad_set(params=payload)
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to create ad set: {exc}") from exc
+        return self.to_dict(result)
+
+    def create_custom_conversion(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self.initialize()
+        account = self.get_ad_account()
+        try:
+            result = account.create_custom_conversion(params=payload)
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(f"Failed to create custom conversion: {exc}") from exc
         return self.to_dict(result)
 
     def create_creative(self, payload: Dict[str, Any]) -> Dict[str, Any]:
