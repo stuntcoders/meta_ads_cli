@@ -17,10 +17,7 @@ CUSTOM_CONVERSION_FIELDS = [
     "description",
     "custom_event_type",
     "event_source_type",
-    "pixel",
-    "data_sources",
     "rule",
-    "action_source_type",
     "default_conversion_value",
     "first_fired_time",
     "last_fired_time",
@@ -163,17 +160,7 @@ def create_custom_conversion(
 
 
 def _event_source_label(item: Dict[str, Any]) -> Any:
-    pixel = item.get("pixel")
-    if isinstance(pixel, dict):
-        return pixel.get("id") or pixel.get("name")
-    data_sources = item.get("data_sources")
-    if isinstance(data_sources, list):
-        return ", ".join(
-            str(source.get("id") or source.get("name"))
-            for source in data_sources
-            if isinstance(source, dict) and (source.get("id") or source.get("name"))
-        )
-    return None
+    return item.get("event_source_type")
 
 
 def _parse_rule(rule_json: str) -> Dict[str, Any]:
