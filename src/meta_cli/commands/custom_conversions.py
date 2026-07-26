@@ -16,8 +16,9 @@ CUSTOM_CONVERSION_FIELDS = [
     "name",
     "description",
     "custom_event_type",
-    "event_source_id",
     "event_source_type",
+    "pixel",
+    "data_sources",
     "rule",
     "action_source_type",
     "default_conversion_value",
@@ -60,7 +61,7 @@ def list_custom_conversions(
                 item.get("id"),
                 item.get("name"),
                 item.get("custom_event_type"),
-                item.get("event_source_id"),
+                _event_source_label(item),
                 item.get("last_fired_time"),
                 item.get("is_unavailable"),
                 item.get("is_archived"),
@@ -159,6 +160,20 @@ def create_custom_conversion(
         emit({"ok": True, "custom_conversion": result, "payload": payload}, as_json=json_output)
     except (ConfigError, APIError, ValueError, json.JSONDecodeError) as exc:
         handle_cli_error(exc, as_json=json_output)
+
+
+def _event_source_label(item: Dict[str, Any]) -> Any:
+    pixel = item.get("pixel")
+    if isinstance(pixel, dict):
+        return pixel.get("id") or pixel.get("name")
+    data_sources = item.get("data_sources")
+    if isinstance(data_sources, list):
+        return ", ".join(
+            str(source.get("id") or source.get("name"))
+            for source in data_sources
+            if isinstance(source, dict) and (source.get("id") or source.get("name"))
+        )
+    return None
 
 
 def _parse_rule(rule_json: str) -> Dict[str, Any]:
