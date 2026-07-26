@@ -51,6 +51,7 @@ class AdSetCreateConfig(BaseModel):
     targeting: Dict[str, Any] = Field(default_factory=dict)
     status: str = "PAUSED"
     promoted_object: Optional[Dict[str, Any]] = None
+    attribution_spec: Optional[List[Dict[str, Any]]] = None
     is_dynamic_creative: Optional[bool] = None
     campaign_budget_optimization: bool = False
 

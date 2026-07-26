@@ -7,6 +7,9 @@ bid_strategy: "LOWEST_COST_WITHOUT_CAP"
 is_dynamic_creative: false
 start_time: "2026-03-22T00:00:00-0700"
 status: "PAUSED"
+attribution_spec:
+  - event_type: "CLICK_THROUGH"
+    window_days: 7
 targeting:
   geo_locations:
     countries: ["US"]

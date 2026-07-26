@@ -15,6 +15,7 @@ class FakeAdSetClient:
         self.last_get_adset = None
         self.last_targeting_update = None
         self.last_budget_update = None
+        self.last_attribution_update = None
 
     def list_adsets(
         self,
@@ -67,6 +68,13 @@ class FakeAdSetClient:
 
     def update_adset_targeting(self, adset_id, targeting):
         self.last_targeting_update = {"adset_id": adset_id, "targeting": targeting}
+        return {"id": adset_id}
+
+    def update_adset_attribution(self, adset_id, attribution_spec):
+        self.last_attribution_update = {
+            "adset_id": adset_id,
+            "attribution_spec": attribution_spec,
+        }
         return {"id": adset_id}
 
 
@@ -139,6 +147,8 @@ def test_adsets_create_dry_run_with_flags(monkeypatch):
             "--targeting-json",
             '{"geo_locations": {"countries": ["US"]}}',
             "--dynamic-creative",
+            "--attribution-spec-json",
+            '[{"event_type":"CLICK_THROUGH","window_days":7}]',
             "--dry-run",
             "--json",
         ],
@@ -147,6 +157,9 @@ def test_adsets_create_dry_run_with_flags(monkeypatch):
     payload = json.loads(result.stdout)["payload"]
     assert payload["campaign_id"] == "123"
     assert payload["is_dynamic_creative"] is True
+    assert payload["attribution_spec"] == [
+        {"event_type": "CLICK_THROUGH", "window_days": 7}
+    ]
 
 
 def test_adsets_update_budget_dry_run_does_not_build_client(monkeypatch):
@@ -251,6 +264,73 @@ def test_adsets_update_targeting_requires_one_source():
 
     assert result.exit_code == 1
     assert "exactly one" in json.loads(result.stdout)["error"]
+
+
+def test_adsets_update_attribution_dry_run_does_not_build_client(monkeypatch):
+    def fail_build_client(*_args):
+        raise AssertionError("dry-run must not build an SDK client")
+
+    monkeypatch.setattr("meta_cli.commands.adsets.build_client", fail_build_client)
+    result = runner.invoke(
+        app,
+        [
+            "adsets",
+            "update-attribution",
+            "a1",
+            "--attribution-spec-json",
+            '[{"event_type":"CLICK_THROUGH","window_days":7}]',
+            "--yes",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["attribution_spec"] == [
+        {"event_type": "CLICK_THROUGH", "window_days": 7}
+    ]
+
+
+def test_adsets_update_attribution_calls_sdk(monkeypatch):
+    fake = FakeAdSetClient()
+    monkeypatch.setattr("meta_cli.commands.adsets.build_client", lambda *_: fake)
+    result = runner.invoke(
+        app,
+        [
+            "adsets",
+            "update-attribution",
+            "a1",
+            "--attribution-spec-json",
+            '[{"event_type":"CLICK_THROUGH","window_days":7}]',
+            "--yes",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert fake.last_attribution_update == {
+        "adset_id": "a1",
+        "attribution_spec": [{"event_type": "CLICK_THROUGH", "window_days": 7}],
+    }
+
+
+def test_adsets_update_attribution_rejects_non_array():
+    result = runner.invoke(
+        app,
+        [
+            "adsets",
+            "update-attribution",
+            "a1",
+            "--attribution-spec-json",
+            "{}",
+            "--yes",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "non-empty JSON array" in json.loads(result.stdout)["error"]
 
 
 def test_adsets_pause_dry_run(monkeypatch):

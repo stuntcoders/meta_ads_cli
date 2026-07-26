@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import typer
 import yaml
@@ -152,6 +152,9 @@ def create_adset(
     promoted_object_json: Optional[str] = typer.Option(
         None, "--promoted-object-json", help="Promoted object JSON"
     ),
+    attribution_spec_json: Optional[str] = typer.Option(
+        None, "--attribution-spec-json", help="Attribution spec JSON array"
+    ),
     is_dynamic_creative: Optional[bool] = typer.Option(
         None,
         "--dynamic-creative/--no-dynamic-creative",
@@ -182,6 +185,7 @@ def create_adset(
             end_time,
             targeting_json,
             promoted_object_json,
+            attribution_spec_json,
             is_dynamic_creative,
             status,
             campaign_budget_optimization,
@@ -277,6 +281,46 @@ def update_adset_targeting(
         handle_cli_error(exc, as_json=json_output)
 
 
+@app.command("update-attribution")
+def update_adset_attribution(
+    adset_id: str,
+    attribution_spec_json: str = typer.Option(
+        ..., "--attribution-spec-json", help="Complete attribution spec JSON array"
+    ),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Validate and print payload only"),
+) -> None:
+    try:
+        attribution_spec = _parse_attribution_spec(attribution_spec_json)
+        require_confirmation(f"Replace attribution spec for ad set {adset_id}?", yes=yes)
+        if dry_run:
+            emit(
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "adset_id": adset_id,
+                    "attribution_spec": attribution_spec,
+                },
+                as_json=json_output,
+            )
+            return
+        client = build_client(auth_config)
+        result = client.update_adset_attribution(adset_id, attribution_spec)
+        emit(
+            {
+                "ok": True,
+                "adset_id": adset_id,
+                "attribution_spec": attribution_spec,
+                "result": result,
+            },
+            as_json=json_output,
+        )
+    except (ConfigError, APIError, ValueError, json.JSONDecodeError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
 @app.command("pause")
 def pause_adset(
     adset_id: str,
@@ -313,6 +357,7 @@ def _build_adset_config(
     end_time: Optional[str],
     targeting_json: Optional[str],
     promoted_object_json: Optional[str],
+    attribution_spec_json: Optional[str],
     is_dynamic_creative: Optional[bool],
     status: str,
     campaign_budget_optimization: bool = False,
@@ -323,6 +368,9 @@ def _build_adset_config(
     targeting: Dict[str, Any] = json.loads(targeting_json) if targeting_json else {}
     promoted_object: Optional[Dict[str, Any]] = (
         json.loads(promoted_object_json) if promoted_object_json else None
+    )
+    attribution_spec = (
+        _parse_attribution_spec(attribution_spec_json) if attribution_spec_json else None
     )
 
     return AdSetCreateConfig(
@@ -338,10 +386,20 @@ def _build_adset_config(
         end_time=end_time,
         targeting=targeting,
         promoted_object=promoted_object,
+        attribution_spec=attribution_spec,
         is_dynamic_creative=is_dynamic_creative,
         status=status,
         campaign_budget_optimization=campaign_budget_optimization,
     )
+
+
+def _parse_attribution_spec(value: str) -> List[Dict[str, Any]]:
+    attribution_spec = json.loads(value)
+    if not isinstance(attribution_spec, list) or not attribution_spec:
+        raise ValueError("--attribution-spec-json must be a non-empty JSON array")
+    if not all(isinstance(item, dict) and item for item in attribution_spec):
+        raise ValueError("Every attribution spec entry must be a non-empty JSON object")
+    return attribution_spec
 
 
 def _load_targeting_update(

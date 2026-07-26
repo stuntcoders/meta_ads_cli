@@ -388,6 +388,9 @@ meta-cli campaigns create --name "Traffic Campaign" --objective OUTCOME_TRAFFIC 
 meta-cli adsets create --config examples/adset.yaml
 meta-cli adsets update-budget <adset_id> --daily-budget 5000 --yes
 meta-cli adsets update-targeting <adset_id> --targeting-file examples/adset.yaml --yes
+meta-cli adsets update-attribution <adset_id> \
+  --attribution-spec-json '[{"event_type":"CLICK_THROUGH","window_days":7}]' \
+  --dry-run --yes --json
 meta-cli custom-conversions create \
   --name "Student chat initiated" \
   --event-source-id <pixel_id> \
@@ -414,7 +417,9 @@ Ad-set creation accepts `is_dynamic_creative: true` in YAML or `--dynamic-creati
 line. Enable it when ads under that ad set will use an `asset_feed_spec` with multiple images,
 headlines, bodies, or descriptions. Meta requires dynamic-creative ads to be created under a
 dynamic-creative ad set, and this setting should be chosen when the ad set is created. The flag is
-optional, so existing non-dynamic ad-set behavior is unchanged.
+optional, so existing non-dynamic ad-set behavior is unchanged. Ad-set creation also accepts an
+`attribution_spec` JSON array in YAML or `--attribution-spec-json`; set it explicitly when cloning
+an ad set so Meta's current default does not silently change the attribution window.
 
 `adsets update-budget` changes exactly one of `daily_budget` or `lifetime_budget` in minor currency
 units. It requires confirmation unless `--yes` is supplied and supports `--dry-run`. Fetch the ad
@@ -475,6 +480,10 @@ of `--targeting-json` or `--targeting-file`; a JSON/YAML file may contain the ta
 itself or an ad set config with a top-level `targeting` key. The command requires confirmation
 unless `--yes` is passed and supports `--dry-run`.
 
+`adsets update-attribution` replaces the complete attribution-spec array. Fetch the ad set first,
+retain every attribution entry that should remain, and dry-run the exact replacement. The command
+requires confirmation unless `--yes` is passed.
+
 ### Status control
 
 ```bash
@@ -515,7 +524,7 @@ Use returned media IDs in ad config:
 
 - New campaigns, ad sets, and ads default to `PAUSED`
 - Use `--dry-run` before real create/update/delete operations
-- Pause/resume, custom-conversion creation, and campaign deletion require confirmation unless `--yes` is passed
+- Pause/resume, ad-set attribution replacement, custom-conversion creation, and campaign deletion require confirmation unless `--yes` is passed
 - Campaign deletion refuses non-paused campaigns and cannot be undone
 - Validate auth (`meta-cli auth test`) before operations
 
