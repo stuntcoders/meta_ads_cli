@@ -12,6 +12,7 @@ from meta_cli.exceptions import APIError
 @dataclass
 class MetaSDKClient:
     credentials: MetaCredentials
+    active_environment: str | None = None
 
     def _core_imports(self) -> Tuple[Any, Any]:
         try:
@@ -204,7 +205,8 @@ class MetaSDKClient:
         try:
             result = campaign.api_get(fields=fields)
         except Exception as exc:  # noqa: BLE001
-            raise APIError(f"Failed to fetch campaign {campaign_id}: {exc}") from exc
+            message = self._redact_exception(exc)
+            raise APIError(f"Failed to fetch campaign {campaign_id}: {message}") from exc
         return self.to_dict(result)
 
     def get_adset_details(self, adset_id: str, fields: List[str]) -> Dict[str, Any]:
@@ -692,6 +694,18 @@ class MetaSDKClient:
             result = campaign.api_update(params={"status": status})
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to update campaign {campaign_id}: {exc}") from exc
+        return self.to_dict(result)
+
+    def update_campaign_budget(self, campaign_id: str, daily_budget: int) -> Dict[str, Any]:
+        self.initialize()
+        campaign = self.get_campaign(campaign_id)
+        try:
+            result = campaign.api_update(params={"daily_budget": daily_budget})
+        except Exception as exc:  # noqa: BLE001
+            message = self._redact_exception(exc)
+            raise APIError(
+                f"Failed to update daily budget for campaign {campaign_id}: {message}"
+            ) from exc
         return self.to_dict(result)
 
     def delete_campaign(self, campaign_id: str) -> Dict[str, Any]:

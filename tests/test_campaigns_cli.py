@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
@@ -16,7 +17,15 @@ class FakeClient:
         self.last_get_campaign = None
         self.last_create_payload = None
         self.last_deleted_campaign = None
+        self.last_budget_update = None
         self.campaign_status = "PAUSED"
+        self.campaign_account_id = "123456"
+        self.credentials = SimpleNamespace(
+            ad_account_id="act_123456",
+            access_token="unit-test-token-must-not-appear",
+            app_secret="unit-test-secret-must-not-appear",
+        )
+        self.active_environment = "unit-test"
 
     def list_campaigns(
         self,
@@ -53,7 +62,7 @@ class FakeClient:
 
     def get_campaign_details(self, campaign_id, fields):
         self.last_get_campaign = {"campaign_id": campaign_id, "fields": fields}
-        return {
+        campaign = {
             "id": campaign_id,
             "name": "Camp 1",
             "status": self.campaign_status,
@@ -61,6 +70,15 @@ class FakeClient:
             "effective_status": self.campaign_status,
             "objective": "OUTCOME_LEADS",
         }
+        if "account_id" in fields:
+            campaign.update(
+                {
+                    "account_id": self.campaign_account_id,
+                    "daily_budget": "3000",
+                    "lifetime_budget": None,
+                }
+            )
+        return campaign
 
     def create_campaign(self, payload):
         self.last_create_payload = payload
@@ -68,6 +86,13 @@ class FakeClient:
 
     def update_campaign_status(self, campaign_id, status):
         return {"id": campaign_id, "status": status}
+
+    def update_campaign_budget(self, campaign_id, daily_budget):
+        self.last_budget_update = {
+            "campaign_id": campaign_id,
+            "daily_budget": daily_budget,
+        }
+        return {"id": campaign_id, "success": True}
 
     def delete_campaign(self, campaign_id):
         self.last_deleted_campaign = campaign_id
@@ -186,6 +211,180 @@ def test_campaign_create_requires_name_and_objective():
     output = json.loads(result.stdout)
     assert output["ok"] is False
     assert "objective" in output["error"]
+
+
+def test_campaign_update_budget_dry_run_validates_target_without_mutation(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(
+        app,
+        [
+            "campaigns",
+            "update-budget",
+            "123",
+            "--daily-budget",
+            "1000",
+            "--yes",
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    output = json.loads(result.stdout)
+    assert output == {
+        "ok": True,
+        "dry_run": True,
+        "operation": "campaign_daily_budget_update",
+        "environment": "unit-test",
+        "account_id": "act_123456",
+        "target": {
+            "campaign_id": "123",
+            "campaign_name": "Camp 1",
+            "account_id": "act_123456",
+            "status": "PAUSED",
+            "configured_status": "PAUSED",
+            "effective_status": "PAUSED",
+            "current_daily_budget": 3000,
+            "lifetime_budget": None,
+        },
+        "mutation": {"daily_budget": 1000},
+    }
+    assert fake.last_budget_update is None
+    assert fake.last_get_campaign == {
+        "campaign_id": "123",
+        "fields": [
+            "id",
+            "account_id",
+            "name",
+            "status",
+            "configured_status",
+            "effective_status",
+            "daily_budget",
+            "lifetime_budget",
+        ],
+    }
+    assert "unit-test-token-must-not-appear" not in result.stdout
+    assert "unit-test-secret-must-not-appear" not in result.stdout
+
+
+def test_campaign_update_budget_live_sends_only_daily_budget(monkeypatch):
+    fake = FakeClient()
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(
+        app,
+        [
+            "campaigns",
+            "update-budget",
+            "123",
+            "--daily-budget",
+            "1000",
+            "--yes",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert fake.last_budget_update == {"campaign_id": "123", "daily_budget": 1000}
+    output = json.loads(result.stdout)
+    assert output["dry_run"] is False
+    assert output["mutation"] == {"daily_budget": 1000}
+    assert output["result"] == {"id": "123", "success": True}
+
+
+def test_campaign_update_budget_rejects_invalid_id_before_loading_context(monkeypatch):
+    def fail_build_client(*_args):
+        raise AssertionError("invalid campaign ID must fail before loading account context")
+
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", fail_build_client)
+    result = runner.invoke(
+        app,
+        [
+            "campaigns",
+            "update-budget",
+            "campaign_123",
+            "--daily-budget",
+            "1000",
+            "--yes",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "digits only" in json.loads(result.stdout)["error"]
+
+
+def test_campaign_update_budget_rejects_invalid_budget_before_loading_context(monkeypatch):
+    def fail_build_client(*_args):
+        raise AssertionError("invalid budget must fail before loading account context")
+
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", fail_build_client)
+    result = runner.invoke(
+        app,
+        [
+            "campaigns",
+            "update-budget",
+            "123",
+            "--daily-budget",
+            "0",
+            "--yes",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "positive integer" in json.loads(result.stdout)["error"]
+
+
+def test_campaign_update_budget_requires_configured_account_context(monkeypatch):
+    fake = FakeClient()
+    fake.credentials = None
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(
+        app,
+        [
+            "campaigns",
+            "update-budget",
+            "123",
+            "--daily-budget",
+            "1000",
+            "--yes",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Configured account ID is missing or invalid" in json.loads(result.stdout)["error"]
+    assert fake.last_get_campaign is None
+    assert fake.last_budget_update is None
+
+
+def test_campaign_update_budget_rejects_account_ownership_mismatch(monkeypatch):
+    fake = FakeClient()
+    fake.campaign_account_id = "999999"
+    monkeypatch.setattr("meta_cli.commands.campaigns.build_client", lambda *_: fake)
+
+    result = runner.invoke(
+        app,
+        [
+            "campaigns",
+            "update-budget",
+            "123",
+            "--daily-budget",
+            "1000",
+            "--yes",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert "belongs to act_999999" in error
+    assert "not configured account act_123456" in error
+    assert fake.last_budget_update is None
 
 
 def test_campaign_pause_dry_run(monkeypatch):

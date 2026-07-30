@@ -12,7 +12,10 @@ from meta_cli.sdk import MetaSDKClient
 
 def build_client(auth_config: Optional[str] = None) -> MetaSDKClient:
     settings = load_settings(auth_config)
-    return MetaSDKClient(settings.credentials)
+    return MetaSDKClient(
+        settings.credentials,
+        active_environment=settings.active_environment,
+    )
 
 
 def handle_cli_error(exc: Exception, as_json: bool = False) -> None:

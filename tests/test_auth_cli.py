@@ -190,8 +190,10 @@ META_AD_ACCOUNT_ID: 999
     captured = []
 
     class FakeClient:
-        def __init__(self, credentials):
-            captured.append(credentials)
+        def __init__(self, credentials, active_environment=None):
+            self.credentials = credentials
+            self.active_environment = active_environment
+            captured.append(self)
 
         def list_campaigns(self, **_kwargs):
             return []
@@ -206,10 +208,12 @@ META_AD_ACCOUNT_ID: 999
 
     assert selected.exit_code == 0
     assert overridden.exit_code == 0
-    assert captured[0].access_token == PROFILE_TOKEN
-    assert captured[0].ad_account_id == "act_123"
-    assert captured[1].access_token == "standard-legacy-token"
-    assert captured[1].ad_account_id == "act_999"
+    assert captured[0].credentials.access_token == PROFILE_TOKEN
+    assert captured[0].credentials.ad_account_id == "act_123"
+    assert captured[0].active_environment == "sandbox"
+    assert captured[1].credentials.access_token == "standard-legacy-token"
+    assert captured[1].credentials.ad_account_id == "act_999"
+    assert captured[1].active_environment is None
     combined_output = selected.stdout + overridden.stdout
     assert PROFILE_TOKEN not in combined_output
     assert PROFILE_SECRET not in combined_output

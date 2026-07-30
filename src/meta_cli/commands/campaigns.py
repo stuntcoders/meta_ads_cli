@@ -28,6 +28,17 @@ CAMPAIGN_DELETE_FIELDS = [
     "effective_status",
 ]
 
+CAMPAIGN_BUDGET_FIELDS = [
+    "id",
+    "account_id",
+    "name",
+    "status",
+    "configured_status",
+    "effective_status",
+    "daily_budget",
+    "lifetime_budget",
+]
+
 CAMPAIGN_DETAIL_FIELDS = [
     "id",
     "name",
@@ -171,6 +182,64 @@ def create_campaign(
         handle_cli_error(exc, as_json=json_output)
 
 
+@app.command("update-budget")
+def update_campaign_budget(
+    campaign_id: str,
+    daily_budget: int = typer.Option(
+        ..., "--daily-budget", help="New raw daily budget in minor currency units"
+    ),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate account ownership and print the exact mutation without updating",
+    ),
+) -> None:
+    """Safely update only a campaign's raw daily budget."""
+    try:
+        validated_campaign_id = _validate_campaign_id(campaign_id)
+        if daily_budget < 1:
+            raise ValueError("--daily-budget must be a positive integer in minor currency units")
+
+        client = build_client(auth_config)
+        configured_account_id = _configured_account_id(client)
+        campaign = client.get_campaign_details(
+            validated_campaign_id,
+            fields=CAMPAIGN_BUDGET_FIELDS,
+        )
+        target = _validate_campaign_budget_target(
+            campaign,
+            campaign_id=validated_campaign_id,
+            configured_account_id=configured_account_id,
+        )
+        mutation = {"daily_budget": daily_budget}
+        operation = {
+            "ok": True,
+            "dry_run": dry_run,
+            "operation": "campaign_daily_budget_update",
+            "environment": getattr(client, "active_environment", None),
+            "account_id": configured_account_id,
+            "target": target,
+            "mutation": mutation,
+        }
+
+        require_confirmation(
+            f"Update campaign {validated_campaign_id} in {configured_account_id} "
+            f"from raw daily budget {target['current_daily_budget']} to {daily_budget}?",
+            yes=yes,
+        )
+        if dry_run:
+            emit(operation, as_json=json_output)
+            return
+
+        result = client.update_campaign_budget(validated_campaign_id, daily_budget)
+        emit({**operation, "result": result}, as_json=json_output)
+    except (ConfigError, APIError, ValueError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
 @app.command("pause")
 def pause_campaign(
     campaign_id: str,
@@ -245,6 +314,72 @@ def delete_campaign(
         )
     except (ConfigError, APIError) as exc:
         handle_cli_error(exc, as_json=json_output)
+
+
+def _validate_campaign_id(campaign_id: str) -> str:
+    value = campaign_id.strip()
+    if not value or not value.isdigit():
+        raise ValueError("Campaign ID must contain digits only")
+    return value
+
+
+def _normalize_account_id(account_id: object, *, source: str) -> str:
+    value = str(account_id or "").strip()
+    if value.startswith("act_"):
+        value = value[4:]
+    if not value or not value.isdigit():
+        raise ConfigError(f"{source} account ID is missing or invalid")
+    return f"act_{value}"
+
+
+def _configured_account_id(client: object) -> str:
+    credentials = getattr(client, "credentials", None)
+    account_id = getattr(credentials, "ad_account_id", None)
+    return _normalize_account_id(account_id, source="Configured")
+
+
+def _validate_campaign_budget_target(
+    campaign: dict[str, object],
+    *,
+    campaign_id: str,
+    configured_account_id: str,
+) -> dict[str, object]:
+    returned_campaign_id = str(campaign.get("id") or "").strip()
+    if returned_campaign_id != campaign_id:
+        raise ConfigError(
+            f"Campaign lookup returned ID {returned_campaign_id or 'missing'}, "
+            f"not requested ID {campaign_id}"
+        )
+
+    campaign_account_id = _normalize_account_id(
+        campaign.get("account_id"), source="Campaign ownership"
+    )
+    if campaign_account_id != configured_account_id:
+        raise ConfigError(
+            f"Campaign {campaign_id} belongs to {campaign_account_id}, "
+            f"not configured account {configured_account_id}"
+        )
+
+    raw_daily_budget = campaign.get("daily_budget")
+    try:
+        current_daily_budget = int(str(raw_daily_budget))
+    except (TypeError, ValueError):
+        raise ConfigError(
+            f"Campaign {campaign_id} does not have a valid raw daily budget"
+        ) from None
+    if current_daily_budget < 1:
+        raise ConfigError(f"Campaign {campaign_id} does not have a valid raw daily budget")
+
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.get("name"),
+        "account_id": campaign_account_id,
+        "status": campaign.get("status"),
+        "configured_status": campaign.get("configured_status"),
+        "effective_status": campaign.get("effective_status"),
+        "current_daily_budget": current_daily_budget,
+        "lifetime_budget": campaign.get("lifetime_budget"),
+    }
 
 
 def _split_csv(value: Optional[str]) -> List[str]:

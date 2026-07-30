@@ -385,6 +385,8 @@ meta-cli media upload-video ./creative.mp4
 ```bash
 meta-cli campaigns create --config examples/campaign.yaml
 meta-cli campaigns create --name "Traffic Campaign" --objective OUTCOME_TRAFFIC --dry-run --json
+meta-cli campaigns update-budget <campaign_id> --daily-budget 1000 --dry-run --yes --json
+meta-cli campaigns update-budget <campaign_id> --daily-budget 1000 --yes --json
 meta-cli adsets create --config examples/adset.yaml
 meta-cli adsets update-budget <adset_id> --daily-budget 5000 --yes
 meta-cli adsets update-targeting <adset_id> --targeting-file examples/adset.yaml --yes
@@ -420,6 +422,14 @@ dynamic-creative ad set, and this setting should be chosen when the ad set is cr
 optional, so existing non-dynamic ad-set behavior is unchanged. Ad-set creation also accepts an
 `attribution_spec` JSON array in YAML or `--attribution-spec-json`; set it explicitly when cloning
 an ad set so Meta's current default does not silently change the attribution window.
+
+`campaigns update-budget` changes only `daily_budget`, supplied as a positive raw integer in minor
+currency units. Before either a dry run or live update, it loads the selected account context and
+fetches the campaign to validate its numeric ID, ownership, and current daily budget. Its structured
+output identifies the operation, selected environment, account, target, current amount, and exact
+mutation without exposing credentials. `--dry-run` performs those read-only validations but sends
+no mutation. A live update requires confirmation unless `--yes` is supplied; fetch the campaign
+again after it succeeds to verify the amount and delivery status.
 
 `adsets update-budget` changes exactly one of `daily_budget` or `lifetime_budget` in minor currency
 units. It requires confirmation unless `--yes` is supplied and supports `--dry-run`. Fetch the ad
