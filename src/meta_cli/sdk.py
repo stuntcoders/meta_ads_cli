@@ -570,7 +570,7 @@ class MetaSDKClient:
         self.initialize()
         video = self.get_video(video_id)
         try:
-            result = video.api_get(fields=["id", "status", "processing_progress", "updated_time"])
+            result = video.api_get(fields=["id", "status", "updated_time"])
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to fetch video status for {video_id}: {exc}") from exc
         return self.to_dict(result)

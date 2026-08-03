@@ -18,6 +18,32 @@ def _creds() -> MetaCredentials:
     )
 
 
+class FakeVideoResult:
+    def export_all_data(self):
+        return {"id": "video1", "status": {"video_status": "ready"}}
+
+
+class FakeVideo:
+    def __init__(self):
+        self.fields = None
+
+    def api_get(self, fields):
+        self.fields = fields
+        return FakeVideoResult()
+
+
+def test_get_video_status_uses_supported_v25_fields(monkeypatch):
+    client = MetaSDKClient(_creds())
+    video = FakeVideo()
+    monkeypatch.setattr(client, "initialize", lambda: None)
+    monkeypatch.setattr(client, "get_video", lambda _video_id: video)
+
+    result = client.get_video_status("video1")
+
+    assert video.fields == ["id", "status", "updated_time"]
+    assert result["status"]["video_status"] == "ready"
+
+
 def test_parse_video_processing_status_ready():
     payload = {"status": {"video_status": "ready", "processing_progress": 100}}
     parsed = MetaSDKClient.parse_video_processing_status(payload)
