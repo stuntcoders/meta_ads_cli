@@ -102,6 +102,65 @@ def upload_video(
         handle_cli_error(exc, as_json=json_output)
 
 
+@app.command("video-status")
+def video_status(
+    video_id: str,
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    wait: bool = typer.Option(
+        False,
+        "--wait/--no-wait",
+        help="Wait until video processing completes",
+    ),
+    poll_interval: float = typer.Option(
+        5.0,
+        "--poll-interval",
+        min=0.1,
+        help="Polling interval in seconds while waiting for processing",
+    ),
+    timeout: int = typer.Option(
+        1800,
+        "--timeout",
+        min=1,
+        help="Max seconds to wait for processing completion",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    try:
+        client = build_client(auth_config)
+        if wait:
+            if json_output:
+                processing = client.wait_for_video_processing(
+                    video_id=video_id,
+                    poll_interval=poll_interval,
+                    timeout=timeout,
+                )
+            else:
+                processing = _wait_with_progress(
+                    client=client,
+                    video_id=video_id,
+                    poll_interval=poll_interval,
+                    timeout=timeout,
+                )
+            emit(
+                {"ok": True, "video_id": video_id, "processing": processing},
+                as_json=json_output,
+            )
+            return
+
+        status = client.get_video_status(video_id)
+        processing = client.parse_video_processing_status(status)
+        emit(
+            {
+                "ok": True,
+                "video_id": video_id,
+                "processing": {**processing, "status": status},
+            },
+            as_json=json_output,
+        )
+    except (ConfigError, APIError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
 def _extract_video_id(upload_result: Dict[str, Any]) -> str:
     video_id = upload_result.get("id") or upload_result.get("video_id")
     if not video_id:

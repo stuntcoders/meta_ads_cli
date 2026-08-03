@@ -378,7 +378,12 @@ rows are fully paginated independently.
 ```bash
 meta-cli media upload-image ./creative.jpg
 meta-cli media upload-video ./creative.mp4
+meta-cli media video-status <video_id> --wait --json
 ```
+
+`media upload-video` waits for Meta processing by default; use `--no-wait` to return immediately.
+Use `media video-status <video_id>` to inspect an existing upload or add `--wait` to resume waiting
+for processing after an interrupted upload command.
 
 ### Create flows
 
