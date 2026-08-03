@@ -248,8 +248,8 @@ def test_adcreate_rejects_invalid_placement_image_config(overrides, message):
         _placement_ad_config(**overrides)
 
 
-def test_adcreate_requires_images_when_customization_rules_are_provided():
-    with pytest.raises(ValueError, match="image_assets is required"):
+def test_adcreate_requires_media_when_customization_rules_are_provided():
+    with pytest.raises(ValueError, match="image_assets or video_assets is required"):
         AdCreateConfig(
             adset_id="adset_1",
             name="Ad",
@@ -260,6 +260,25 @@ def test_adcreate_requires_images_when_customization_rules_are_provided():
                 {
                     "customization_spec": {"publisher_platforms": ["facebook"]},
                     "image_label": "feed",
+                }
+            ],
+        )
+
+
+def test_adcreate_rejects_image_hashes_with_placement_video_assets():
+    with pytest.raises(ValueError, match="use labeled image_assets"):
+        AdCreateConfig(
+            adset_id="adset_1",
+            name="Ad",
+            page_id="page_1",
+            destination_url="https://example.com",
+            bodies=["Body"],
+            image_hashes=["legacy_hash"],
+            video_assets=[{"video_id": "video_1", "label": "reels_9x16"}],
+            asset_customization_rules=[
+                {
+                    "customization_spec": {"publisher_platforms": ["instagram"]},
+                    "video_label": "reels_9x16",
                 }
             ],
         )

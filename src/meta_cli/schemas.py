@@ -88,18 +88,42 @@ class ImageAsset(BaseModel):
         return label
 
 
+class VideoAsset(BaseModel):
+    video_id: str
+    label: str
+
+    @field_validator("video_id", "label")
+    @classmethod
+    def validate_nonblank_value(cls, value: str, info: Any) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError(f"Video asset {info.field_name} must not be blank")
+        return normalized
+
+
 class AssetCustomizationRule(BaseModel):
     customization_spec: Dict[str, Any]
-    image_label: str
+    image_label: Optional[str] = None
+    video_label: Optional[str] = None
     priority: Optional[int] = None
 
-    @field_validator("image_label")
+    @field_validator("image_label", "video_label")
     @classmethod
-    def validate_image_label(cls, value: str) -> str:
+    def validate_media_label(cls, value: Optional[str], info: Any) -> Optional[str]:
+        if value is None:
+            return None
         label = value.strip()
         if not label:
-            raise ValueError("Customization rule image_label must not be blank")
+            raise ValueError(f"Customization rule {info.field_name} must not be blank")
         return label
+
+    @model_validator(mode="after")
+    def validate_exactly_one_media_label(self) -> "AssetCustomizationRule":
+        if bool(self.image_label) == bool(self.video_label):
+            raise ValueError(
+                "Customization rule must provide exactly one of image_label or video_label"
+            )
+        return self
 
 
 class AdCreateConfig(BaseModel):
@@ -114,6 +138,7 @@ class AdCreateConfig(BaseModel):
     descriptions: List[str] = Field(default_factory=list)
     image_hashes: List[str] = Field(default_factory=list)
     image_assets: List[ImageAsset] = Field(default_factory=list)
+    video_assets: List[VideoAsset] = Field(default_factory=list)
     asset_customization_rules: List[AssetCustomizationRule] = Field(default_factory=list)
     video_id: Optional[str] = None
     call_to_action_type: Optional[str] = "LEARN_MORE"
@@ -135,20 +160,53 @@ class AdCreateConfig(BaseModel):
     def validate_payload_requirements(self) -> "AdCreateConfig":
         if self.image_hashes and self.image_assets:
             raise ValueError("Provide either image_hashes or image_assets, not both")
-        if self.asset_customization_rules and not self.image_assets:
-            raise ValueError("image_assets is required when asset_customization_rules is provided")
-        if self.image_assets and not self.asset_customization_rules:
-            raise ValueError("At least one asset_customization_rule is required with image_assets")
+        if self.video_id and self.video_assets:
+            raise ValueError("Provide either video_id or video_assets, not both")
+        if self.image_hashes and self.video_assets:
+            raise ValueError(
+                "image_hashes cannot be combined with video_assets; use labeled image_assets "
+                "for mixed placement media"
+            )
+        if self.video_id and (self.image_hashes or self.image_assets):
+            raise ValueError(
+                "Legacy video_id cannot be combined with image_hashes or image_assets; "
+                "use labeled video_assets for mixed placement media"
+            )
 
-        labels = [asset.label for asset in self.image_assets]
-        if len(labels) != len(set(labels)):
-            raise ValueError("Image asset labels must be unique")
-        unknown_labels = {
-            rule.image_label for rule in self.asset_customization_rules if rule.image_label not in labels
+        has_placement_assets = bool(self.image_assets or self.video_assets)
+        if self.asset_customization_rules and not has_placement_assets:
+            raise ValueError(
+                "image_assets or video_assets is required when "
+                "asset_customization_rules is provided"
+            )
+        if has_placement_assets and not self.asset_customization_rules:
+            raise ValueError(
+                "At least one asset_customization_rule is required with placement assets"
+            )
+
+        image_labels = [asset.label for asset in self.image_assets]
+        video_labels = [asset.label for asset in self.video_assets]
+        all_labels = image_labels + video_labels
+        if len(all_labels) != len(set(all_labels)):
+            raise ValueError("Placement asset labels must be unique across images and videos")
+
+        unknown_image_labels = {
+            rule.image_label
+            for rule in self.asset_customization_rules
+            if rule.image_label and rule.image_label not in image_labels
         }
-        if unknown_labels:
-            names = ", ".join(sorted(unknown_labels))
+        if unknown_image_labels:
+            names = ", ".join(sorted(unknown_image_labels))
             raise ValueError(f"Customization rule image_label references unknown label(s): {names}")
+
+        unknown_video_labels = {
+            rule.video_label
+            for rule in self.asset_customization_rules
+            if rule.video_label and rule.video_label not in video_labels
+        }
+        if unknown_video_labels:
+            names = ", ".join(sorted(unknown_video_labels))
+            raise ValueError(f"Customization rule video_label references unknown label(s): {names}")
 
         if self.asset_customization_rules and any(
             len(values) > 1 for values in (self.headlines, self.bodies, self.descriptions)
@@ -161,18 +219,14 @@ class AdCreateConfig(BaseModel):
 
         if self.existing_creative_id:
             return self
-        if self.image_hashes and self.video_id:
-            raise ValueError("Provide either image_hashes or video_id, not both")
-        if self.image_assets and self.video_id:
-            raise ValueError("Provide either image_assets or video_id, not both")
         if not self.page_id:
             raise ValueError("page_id is required unless existing_creative_id is provided")
         if not self.bodies:
             raise ValueError("At least one body text is required")
         if not self.destination_url:
             raise ValueError("destination_url is required")
-        if not self.image_hashes and not self.image_assets and not self.video_id:
-            raise ValueError("Provide image_hashes, image_assets, or video_id")
+        if not self.image_hashes and not has_placement_assets and not self.video_id:
+            raise ValueError("Provide image_hashes, placement image/video assets, or video_id")
         return self
 
     def uses_asset_feed_spec(self) -> bool:
@@ -182,6 +236,7 @@ class AdCreateConfig(BaseModel):
             or len(self.descriptions) > 1
             or len(self.image_hashes) > 1
             or bool(self.image_assets)
+            or bool(self.video_assets)
         )
 
     def build_creative_payload(self) -> Dict[str, Any]:
@@ -210,14 +265,29 @@ class AdCreateConfig(BaseModel):
                     {"hash": asset.hash, "adlabels": [{"name": asset.label}]}
                     for asset in self.image_assets
                 ]
-                asset_feed_spec["asset_customization_rules"] = [
-                    {
-                        **rule.model_dump(exclude={"image_label"}, exclude_none=True),
-                        "image_label": {"name": rule.image_label},
-                    }
-                    for rule in self.asset_customization_rules
+            if self.video_assets:
+                asset_feed_spec["videos"] = [
+                    {"video_id": asset.video_id, "adlabels": [{"name": asset.label}]}
+                    for asset in self.video_assets
                 ]
-                asset_feed_spec["ad_formats"] = ["SINGLE_IMAGE"]
+            if self.image_assets or self.video_assets:
+                rules = []
+                for rule in self.asset_customization_rules:
+                    rule_payload = rule.model_dump(
+                        exclude={"image_label", "video_label"}, exclude_none=True
+                    )
+                    if rule.image_label:
+                        rule_payload["image_label"] = {"name": rule.image_label}
+                    else:
+                        rule_payload["video_label"] = {"name": rule.video_label}
+                    rules.append(rule_payload)
+                asset_feed_spec["asset_customization_rules"] = rules
+                if self.image_assets and self.video_assets:
+                    asset_feed_spec["ad_formats"] = ["AUTOMATIC_FORMAT"]
+                elif self.image_assets:
+                    asset_feed_spec["ad_formats"] = ["SINGLE_IMAGE"]
+                else:
+                    asset_feed_spec["ad_formats"] = ["SINGLE_VIDEO"]
             if self.video_id:
                 asset_feed_spec["videos"] = [{"video_id": self.video_id}]
                 asset_feed_spec["ad_formats"] = ["SINGLE_VIDEO"]

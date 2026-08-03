@@ -163,6 +163,11 @@ def create_ad(
         "--image-assets-json",
         help='JSON array of placement image assets, e.g. [{"hash":"...","label":"feed_4x5"}]',
     ),
+    video_assets_json: Optional[str] = typer.Option(
+        None,
+        "--video-assets-json",
+        help='JSON array of placement video assets, e.g. [{"video_id":"...","label":"reels_9x16"}]',
+    ),
     asset_customization_rules_json: Optional[str] = typer.Option(
         None,
         "--asset-customization-rules-json",
@@ -194,6 +199,7 @@ def create_ad(
             descriptions=descriptions,
             image_hashes=image_hashes,
             image_assets_json=image_assets_json,
+            video_assets_json=video_assets_json,
             asset_customization_rules_json=asset_customization_rules_json,
             video_id=video_id,
             call_to_action_type=call_to_action_type,
@@ -329,6 +335,7 @@ def _build_ad_config(
     descriptions: Optional[str],
     image_hashes: Optional[str],
     image_assets_json: Optional[str],
+    video_assets_json: Optional[str],
     asset_customization_rules_json: Optional[str],
     video_id: Optional[str],
     call_to_action_type: str,
@@ -372,6 +379,7 @@ def _build_ad_config(
         descriptions=_split_csv(descriptions),
         image_hashes=_split_csv(image_hashes),
         image_assets=_parse_json_list(image_assets_json, "--image-assets-json"),
+        video_assets=_parse_json_list(video_assets_json, "--video-assets-json"),
         asset_customization_rules=_parse_json_list(
             asset_customization_rules_json, "--asset-customization-rules-json"
         ),

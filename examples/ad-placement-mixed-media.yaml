@@ -1,0 +1,47 @@
+adset_id: "<AD_SET_ID>"
+name: "Placement images with Reels video"
+page_id: "<FACEBOOK_PAGE_ID>"
+instagram_user_id: "<INSTAGRAM_USER_ID>"
+destination_url: "https://example.com"
+headlines:
+  - "Create your profile"
+bodies:
+  - "Present your services with a professional profile."
+descriptions:
+  - "Profile membership"
+image_assets:
+  - hash: "<FEED_4X5_IMAGE_HASH>"
+    label: "feed_4x5"
+  - hash: "<SQUARE_1X1_IMAGE_HASH>"
+    label: "square_1x1"
+  - hash: "<STORIES_9X16_IMAGE_HASH>"
+    label: "stories_9x16"
+video_assets:
+  - video_id: "<REELS_9X16_VIDEO_ID>"
+    label: "reels_9x16"
+asset_customization_rules:
+  - customization_spec:
+      publisher_platforms: [facebook, instagram]
+      facebook_positions: [feed]
+      instagram_positions: [stream]
+    image_label: "feed_4x5"
+    priority: 1
+  - customization_spec:
+      publisher_platforms: [facebook]
+      facebook_positions: [right_hand_column, search]
+    image_label: "square_1x1"
+    priority: 2
+  - customization_spec:
+      publisher_platforms: [facebook, instagram]
+      facebook_positions: [story]
+      instagram_positions: [story]
+    image_label: "stories_9x16"
+    priority: 3
+  - customization_spec:
+      publisher_platforms: [facebook, instagram]
+      facebook_positions: [facebook_reels]
+      instagram_positions: [reels]
+    video_label: "reels_9x16"
+    priority: 4
+call_to_action_type: "SIGN_UP"
+status: "PAUSED"

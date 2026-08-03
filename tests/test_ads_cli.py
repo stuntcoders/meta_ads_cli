@@ -433,6 +433,129 @@ asset_customization_rules:
     assert feed["asset_customization_rules"][0]["priority"] == 1
 
 
+def test_ads_create_mixed_placement_images_and_video_from_yaml(tmp_path):
+    path = tmp_path / "placement-mixed-media.yaml"
+    path.write_text(
+        """
+adset_id: a1
+name: Mixed Placement Ad
+page_id: p1
+destination_url: https://example.com
+bodies: [Body]
+image_assets:
+  - {hash: portrait, label: feed_4x5}
+  - {hash: story, label: stories_9x16}
+video_assets:
+  - {video_id: video_1, label: reels_9x16}
+asset_customization_rules:
+  - customization_spec:
+      publisher_platforms: [facebook, instagram]
+      facebook_positions: [feed]
+      instagram_positions: [stream]
+    image_label: feed_4x5
+    priority: 1
+  - customization_spec:
+      publisher_platforms: [facebook, instagram]
+      facebook_positions: [story]
+      instagram_positions: [story]
+    image_label: stories_9x16
+    priority: 2
+  - customization_spec:
+      publisher_platforms: [facebook, instagram]
+      facebook_positions: [facebook_reels]
+      instagram_positions: [reels]
+    video_label: reels_9x16
+    priority: 3
+""".strip()
+    )
+
+    result = runner.invoke(
+        app, ["ads", "create", "--config", str(path), "--dry-run", "--json"]
+    )
+
+    assert result.exit_code == 0
+    feed = json.loads(result.stdout)["creative_payload"]["asset_feed_spec"]
+    assert feed["images"] == [
+        {"hash": "portrait", "adlabels": [{"name": "feed_4x5"}]},
+        {"hash": "story", "adlabels": [{"name": "stories_9x16"}]},
+    ]
+    assert feed["videos"] == [
+        {"video_id": "video_1", "adlabels": [{"name": "reels_9x16"}]}
+    ]
+    assert feed["ad_formats"] == ["AUTOMATIC_FORMAT"]
+    assert feed["asset_customization_rules"][0]["image_label"] == {
+        "name": "feed_4x5"
+    }
+    assert feed["asset_customization_rules"][2]["video_label"] == {
+        "name": "reels_9x16"
+    }
+    assert "image_label" not in feed["asset_customization_rules"][2]
+
+
+def test_ads_create_mixed_placement_media_from_json_flags_dry_run():
+    result = runner.invoke(
+        app,
+        [
+            "ads",
+            "create",
+            "--adset-id",
+            "a1",
+            "--name",
+            "Mixed Placement Ad",
+            "--page-id",
+            "p1",
+            "--destination-url",
+            "https://example.com",
+            "--bodies",
+            "Body",
+            "--image-assets-json",
+            '[{"hash":"portrait","label":"feed_4x5"}]',
+            "--video-assets-json",
+            '[{"video_id":"video_1","label":"reels_9x16"}]',
+            "--asset-customization-rules-json",
+            '[{"customization_spec":{"publisher_platforms":["facebook"]},"image_label":"feed_4x5"},{"customization_spec":{"publisher_platforms":["instagram"]},"video_label":"reels_9x16"}]',
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    feed = json.loads(result.stdout)["creative_payload"]["asset_feed_spec"]
+    assert feed["images"][0]["hash"] == "portrait"
+    assert feed["videos"][0]["video_id"] == "video_1"
+    assert feed["asset_customization_rules"][1]["video_label"] == {
+        "name": "reels_9x16"
+    }
+
+
+def test_ads_create_rejects_rule_with_image_and_video_label(tmp_path):
+    path = tmp_path / "invalid-placement-rule.yaml"
+    path.write_text(
+        """
+adset_id: a1
+name: Invalid Placement Ad
+page_id: p1
+destination_url: https://example.com
+bodies: [Body]
+image_assets:
+  - {hash: portrait, label: feed_4x5}
+video_assets:
+  - {video_id: video_1, label: reels_9x16}
+asset_customization_rules:
+  - customization_spec: {publisher_platforms: [facebook]}
+    image_label: feed_4x5
+    video_label: reels_9x16
+""".strip()
+    )
+
+    result = runner.invoke(
+        app, ["ads", "create", "--config", str(path), "--dry-run", "--json"]
+    )
+
+    assert result.exit_code == 1
+    assert "exactly one of image_label or video_label" in json.loads(result.stdout)["error"]
+
+
 def test_ads_create_rejects_mixed_legacy_and_placement_images():
     result = runner.invoke(
         app,

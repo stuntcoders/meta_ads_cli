@@ -402,6 +402,7 @@ meta-cli custom-conversions create \
   --dry-run --yes --json
 meta-cli ads create --config examples/ad.yaml
 meta-cli ads create --config examples/ad-placement-images.yaml --dry-run --json
+meta-cli ads create --config examples/ad-placement-mixed-media.yaml --dry-run --json
 meta-cli creatives create --config examples/ad.yaml --dry-run --json
 meta-cli ads update-creative <ad_id> --creative-id <creative_id> --yes
 ```
@@ -456,33 +457,39 @@ is a deliberate legacy override and therefore does not borrow identity defaults 
 profile. If no explicit or profile Facebook Page ID is available, the existing validation error is
 preserved. `creatives get` shows the identity field used by an existing working creative.
 
-For placement-specific static creative, `ads create` accepts `image_assets` and
-`asset_customization_rules` in YAML. Each image asset has a Meta image `hash` and a unique,
-nonblank `label`; each rule has a Meta `customization_spec`, an `image_label` referencing one of
-those labels, and an optional `priority`. The generated `asset_feed_spec` adds the label as an
-`adlabels` entry on each image and emits the rules with Meta's `{\"name\": ...}` image-label
-shape. See `examples/ad-placement-images.yaml` for dedicated 4:5 feed, 1:1, and 9:16
-Stories/Reels assets.
+For placement-specific static or mixed image/video creative, `ads create` and `creatives create`
+accept `image_assets`, `video_assets`, and `asset_customization_rules` in YAML. Each image asset has
+a Meta image `hash`; each video asset has an uploaded Meta `video_id`; both use a unique, nonblank
+`label`. Each rule has a Meta `customization_spec`, exactly one of `image_label` or `video_label`
+referencing the corresponding asset, and an optional `priority`. The generated `asset_feed_spec`
+adds labels as `adlabels`, emits Meta's `{\"name\": ...}` media-label shape, and uses
+`AUTOMATIC_FORMAT` when both image and video assets are present. See
+`examples/ad-placement-images.yaml` for dedicated static ratios and
+`examples/ad-placement-mixed-media.yaml` for static feed/Stories assets plus a Reels video.
 
 The equivalent CLI flags accept JSON arrays:
 
 ```bash
 meta-cli ads create \
-  --adset-id "$ADSET_ID" --name "Placement images" --page-id "$PAGE_ID" \
+  --adset-id "$ADSET_ID" --name "Placement media" --page-id "$PAGE_ID" \
   --destination-url "https://example.com" --bodies "Find the right tutor" \
   --image-assets-json '[{"hash":"hash_4x5","label":"feed_4x5"},{"hash":"hash_1x1","label":"square_1x1"},{"hash":"hash_9x16","label":"stories_9x16"}]' \
-  --asset-customization-rules-json '[{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["feed"],"instagram_positions":["stream"]},"image_label":"feed_4x5","priority":1}]' \
+  --video-assets-json '[{"video_id":"video_id_9x16","label":"reels_9x16"}]' \
+  --asset-customization-rules-json '[{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["feed"],"instagram_positions":["stream"]},"image_label":"feed_4x5","priority":1},{"customization_spec":{"publisher_platforms":["facebook","instagram"],"facebook_positions":["facebook_reels"],"instagram_positions":["reels"]},"video_label":"reels_9x16","priority":2}]' \
   --dry-run --json
 ```
 
-`image_assets` requires at least one customization rule, and customization rules cannot be used
-without `image_assets`. Blank or duplicate asset labels and rules that reference unknown labels
-are rejected. Meta API v22+ no longer supports segment asset customization for multiple text
+Placement assets require at least one customization rule, and customization rules cannot be used
+without `image_assets` or `video_assets`. Asset labels must be unique across images and videos;
+blank labels, rules with both/neither label type, and rules that reference unknown or wrong media
+labels are rejected. Meta API v22+ no longer supports segment asset customization for multiple text
 variants, so placement rules accept at most one headline, body, and description. For multiple copy
 variants plus several uploaded image ratios, use `image_hashes` without
 `asset_customization_rules`; Meta then optimizes the asset-feed combinations. `image_hashes` and
-`image_assets` are mutually exclusive. Existing `image_hashes` behavior is unchanged, including
-the single-image story payload and multi-image asset-feed payload.
+`image_assets` are mutually exclusive. Legacy `video_id` remains the single-video flow and cannot
+be mixed with images; use labeled `video_assets` for mixed placement media. Existing
+`image_hashes` behavior is unchanged, including the single-image story payload and multi-image
+asset-feed payload.
 
 `adsets update-targeting` replaces the complete targeting object, so first export or retain the
 existing targeting and include every constraint and placement that must remain. Supply exactly one
@@ -522,11 +529,12 @@ deletion because the campaign cannot be restored.
 - `examples/adset.yaml`
 - `examples/ad.yaml`
 - `examples/ad-placement-images.yaml`
+- `examples/ad-placement-mixed-media.yaml`
 
 Use returned media IDs in ad config:
 
 - image upload → `image_hashes`, or `image_assets[].hash` for placement-specific images
-- video upload → `video_id`
+- video upload → `video_id` for one video, or `video_assets[].video_id` for placement-specific mixed media
 
 ---
 
