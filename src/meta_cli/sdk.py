@@ -637,7 +637,7 @@ class MetaSDKClient:
         if not path.exists():
             raise APIError(f"Video file does not exist: {video_path}")
         try:
-            result = account.create_ad_video(params={"filepath": str(path)})
+            result = account.create_ad_video(params={"source": str(path)})
         except Exception as exc:  # noqa: BLE001
             raise APIError(f"Failed to upload video: {exc}") from exc
         return self.to_dict(result)
