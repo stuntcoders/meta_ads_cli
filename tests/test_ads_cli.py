@@ -171,6 +171,8 @@ def test_ads_create_dry_run_multi_text(monkeypatch):
             "ig1",
             "--destination-url",
             "https://example.com",
+            "--url-tags",
+            "campaign_id={{campaign.id}}&ad_id={{ad.id}}",
             "--headlines",
             "h1,h2",
             "--bodies",
@@ -185,6 +187,9 @@ def test_ads_create_dry_run_multi_text(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["uses_asset_feed_spec"] is True
     assert payload["creative_payload"]["object_story_spec"]["instagram_user_id"] == "ig1"
+    assert payload["creative_payload"]["url_tags"] == (
+        "campaign_id={{campaign.id}}&ad_id={{ad.id}}"
+    )
 
 
 def test_ads_create_uses_profile_identity_defaults_and_stays_paused(tmp_path, monkeypatch):

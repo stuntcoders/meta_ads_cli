@@ -146,6 +146,9 @@ def create_ad(
     destination_url: Optional[str] = typer.Option(
         None, "--destination-url", help="Destination website URL"
     ),
+    url_tags: Optional[str] = typer.Option(
+        None, "--url-tags", help="Query parameters appended by Meta, without a leading ?"
+    ),
     headlines: Optional[str] = typer.Option(
         None, "--headlines", help="Comma-separated headline variants"
     ),
@@ -194,6 +197,7 @@ def create_ad(
             instagram_actor_id=instagram_actor_id,
             instagram_user_id=instagram_user_id,
             destination_url=destination_url,
+            url_tags=url_tags,
             headlines=headlines,
             bodies=bodies,
             descriptions=descriptions,
@@ -330,6 +334,7 @@ def _build_ad_config(
     instagram_actor_id: Optional[str],
     instagram_user_id: Optional[str],
     destination_url: Optional[str],
+    url_tags: Optional[str],
     headlines: Optional[str],
     bodies: Optional[str],
     descriptions: Optional[str],
@@ -374,6 +379,7 @@ def _build_ad_config(
             else identity_defaults.get("instagram_user_id")
         ),
         destination_url=destination_url,
+        url_tags=url_tags,
         headlines=_split_csv(headlines),
         bodies=_split_csv(bodies),
         descriptions=_split_csv(descriptions),

@@ -463,6 +463,12 @@ is a deliberate legacy override and therefore does not borrow identity defaults 
 profile. If no explicit or profile Facebook Page ID is available, the existing validation error is
 preserved. `creatives get` shows the identity field used by an existing working creative.
 
+Set `url_tags` in ad YAML, or pass `--url-tags` to `ads create`, to add Meta URL-parameter templates
+to the creative without changing its destination URL. Omit the leading `?`; one is stripped when
+provided. This works for legacy and asset-feed creatives, including dynamic IDs such as
+`campaign_id={{campaign.id}}&adset_id={{adset.id}}&ad_id={{ad.id}}`. Use `creatives get` to verify
+the resulting `url_tags` before attaching a replacement creative to a live ad.
+
 For placement-specific static or mixed image/video creative, `ads create` and `creatives create`
 accept `image_assets`, `video_assets`, and `asset_customization_rules` in YAML. Each image asset has
 a Meta image `hash`; each video asset has an uploaded Meta `video_id`; both use a unique, nonblank

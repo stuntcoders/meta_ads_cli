@@ -104,6 +104,33 @@ def test_adset_to_payload_supports_dynamic_creative():
     assert cfg.to_payload()["is_dynamic_creative"] is True
 
 
+@pytest.mark.parametrize("placement_assets", [False, True])
+def test_adcreate_creative_payload_includes_normalized_url_tags(placement_assets):
+    config = (
+        _placement_ad_config(url_tags="?campaign_id={{campaign.id}}&ad_id={{ad.id}}")
+        if placement_assets
+        else AdCreateConfig(
+            adset_id="adset_1",
+            name="Ad",
+            page_id="page_1",
+            destination_url="https://example.com",
+            url_tags="?campaign_id={{campaign.id}}&ad_id={{ad.id}}",
+            bodies=["Body"],
+            image_hashes=["legacy_hash"],
+        )
+    )
+
+    assert config.url_tags == "campaign_id={{campaign.id}}&ad_id={{ad.id}}"
+    assert config.build_creative_payload()["url_tags"] == (
+        "campaign_id={{campaign.id}}&ad_id={{ad.id}}"
+    )
+
+
+def test_adcreate_rejects_blank_url_tags():
+    with pytest.raises(ValueError, match="url_tags must not be blank"):
+        _placement_ad_config(url_tags=" ? ")
+
+
 def test_adcreate_asset_feed_payload_for_multi_text():
     cfg = AdCreateConfig(
         adset_id="adset_1",

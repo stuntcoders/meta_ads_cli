@@ -133,6 +133,7 @@ class AdCreateConfig(BaseModel):
     instagram_actor_id: Optional[str] = None
     instagram_user_id: Optional[str] = None
     destination_url: Optional[str] = None
+    url_tags: Optional[str] = None
     headlines: List[str] = Field(default_factory=list)
     bodies: List[str] = Field(default_factory=list)
     descriptions: List[str] = Field(default_factory=list)
@@ -144,6 +145,16 @@ class AdCreateConfig(BaseModel):
     call_to_action_type: Optional[str] = "LEARN_MORE"
     status: str = "PAUSED"
     existing_creative_id: Optional[str] = None
+
+    @field_validator("url_tags")
+    @classmethod
+    def normalize_url_tags(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip().lstrip("?")
+        if not normalized:
+            raise ValueError("url_tags must not be blank")
+        return normalized
 
     @field_validator("headlines", "bodies", "descriptions", "image_hashes", mode="before")
     @classmethod
@@ -299,6 +310,8 @@ class AdCreateConfig(BaseModel):
                 "object_story_spec": base_story_spec,
                 "asset_feed_spec": asset_feed_spec,
             }
+            if self.url_tags:
+                payload["url_tags"] = self.url_tags
             return payload
 
         body_text = self.bodies[0]
@@ -337,7 +350,10 @@ class AdCreateConfig(BaseModel):
                 }
             base_story_spec["link_data"] = link_data
 
-        return {"name": f"{self.name} - creative", "object_story_spec": base_story_spec}
+        payload = {"name": f"{self.name} - creative", "object_story_spec": base_story_spec}
+        if self.url_tags:
+            payload["url_tags"] = self.url_tags
+        return payload
 
     def build_ad_payload(self, creative_id: str) -> Dict[str, Any]:
         return {
