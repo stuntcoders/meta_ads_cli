@@ -296,8 +296,9 @@ meta-cli custom-conversions list
 meta-cli custom-conversions get <custom_conversion_id>
 ```
 
-`creatives get` includes the object story spec and asset feed spec, which is useful for confirming
-Facebook Page and Instagram actor identities plus placement-specific creative rules.
+`creatives get` includes the object story spec, asset feed spec, and `url_tags`. These fields are
+useful for confirming Facebook Page and Instagram actor identities, placement-specific creative
+rules, and URL-parameter templates such as Meta's dynamic campaign, ad set, and ad IDs.
 
 `campaigns get`, `adsets get`, and `ads get` include Meta delivery diagnostics when available,
 including configured/effective status, issues, recommendations, remaining budget, learning-stage

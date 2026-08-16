@@ -16,6 +16,7 @@ CREATIVE_DETAIL_FIELDS = [
     "name",
     "object_story_spec",
     "asset_feed_spec",
+    "url_tags",
     "effective_object_story_id",
     "status",
 ]
