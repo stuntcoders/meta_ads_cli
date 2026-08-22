@@ -139,9 +139,10 @@ def create_custom_audience(
                 retention_days=retention_days,
             )
 
+        # NOTE: subtype was removed from audience creation in newer Graph API
+        # versions (rejected as of v25.0); WEBSITE is inferred from the rule.
         payload: Dict[str, Any] = {
             "name": name.strip(),
-            "subtype": "WEBSITE",
             "rule": json.dumps(rule, separators=(",", ":")),
         }
         if not payload["name"]:

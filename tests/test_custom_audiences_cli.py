@@ -129,7 +129,7 @@ def test_custom_audiences_create_dry_run(monkeypatch):
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["dry_run"] is True
-    assert payload["payload"]["subtype"] == "WEBSITE"
+    assert "subtype" not in payload["payload"]
     rule = json.loads(payload["payload"]["rule"])
     rule_entry = rule["inclusions"]["rules"][0]
     assert rule_entry["event_sources"] == [{"type": "pixel", "id": "pixel1"}]
