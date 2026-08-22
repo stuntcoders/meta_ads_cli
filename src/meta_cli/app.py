@@ -7,6 +7,7 @@ from meta_cli.commands.adsets import app as adsets_app
 from meta_cli.commands.auth import app as auth_app
 from meta_cli.commands.campaigns import app as campaigns_app
 from meta_cli.commands.creatives import app as creatives_app
+from meta_cli.commands.custom_audiences import app as custom_audiences_app
 from meta_cli.commands.custom_conversions import app as custom_conversions_app
 from meta_cli.commands.environments import app as environments_app
 from meta_cli.commands.insights import app as insights_app
@@ -23,6 +24,7 @@ app.add_typer(adsets_app, name="adsets")
 app.add_typer(ads_app, name="ads")
 app.add_typer(creatives_app, name="creatives")
 app.add_typer(custom_conversions_app, name="custom-conversions")
+app.add_typer(custom_audiences_app, name="custom-audiences")
 app.add_typer(insights_app, name="insights")
 app.add_typer(media_app, name="media")
 app.add_typer(report_app, name="report")
