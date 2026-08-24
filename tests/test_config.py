@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from meta_cli.config import load_settings
+from meta_cli.environments import EnvironmentStore
 from meta_cli.exceptions import ConfigError
 
 
@@ -18,6 +19,7 @@ def clear_meta_env(monkeypatch, tmp_path):
         "META_SYSTEM_USER_ID",
         "META_FACEBOOK_PAGE_ID",
         "META_INSTAGRAM_USER_ID",
+        "META_CLI_ENVIRONMENT",
     ]:
         monkeypatch.delenv(key, raising=False)
 
@@ -43,6 +45,46 @@ profiles:
     assert settings.credentials.access_token == "selected-token"
     assert settings.credentials.ad_account_id == "act_123456"
     assert settings.credentials.api_version == "v25.0"
+
+
+def test_process_local_environment_override_does_not_change_persisted_selection(
+    tmp_path, monkeypatch
+):
+    environments = tmp_path / "environments.yaml"
+    environments.write_text(
+        """
+active_profile: brand-a
+profiles:
+  brand-a:
+    access_token: token-a
+    app_id: app-a
+    app_secret: secret-a
+    ad_account_id: 111
+  brand-b:
+    access_token: token-b
+    app_id: app-b
+    app_secret: secret-b
+    ad_account_id: 222
+""".strip()
+    )
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
+    monkeypatch.setenv("META_CLI_ENVIRONMENT", "brand-b")
+
+    settings = load_settings()
+
+    assert settings.active_environment == "brand-b"
+    assert settings.credentials.ad_account_id == "act_222"
+    assert EnvironmentStore().active_profile_name() == "brand-a"
+
+
+def test_unknown_process_local_environment_fails_closed(tmp_path, monkeypatch):
+    environments = tmp_path / "environments.yaml"
+    environments.write_text("active_profile: null\nprofiles: {}\n")
+    monkeypatch.setenv("META_CLI_ENVIRONMENTS_FILE", str(environments))
+    monkeypatch.setenv("META_CLI_ENVIRONMENT", "missing")
+
+    with pytest.raises(ConfigError, match="environment 'missing' does not exist"):
+        load_settings()
 
 
 def test_env_overrides_file(tmp_path, monkeypatch):

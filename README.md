@@ -204,6 +204,18 @@ export META_CLI_ENVIRONMENTS_FILE="$RUNNER_TEMP/meta-cli/environments.yaml"
 Create that file with the same schema and `0600` permissions. The override changes only the store
 location; it does not select a profile.
 
+For a process-local read or automation command that must not change the persisted selection, set an
+exact profile name with `META_CLI_ENVIRONMENT`:
+
+```bash
+META_CLI_ENVIRONMENT=brand-b meta-cli insights ads --all --json
+```
+
+This override selects credentials only for that process, never rewrites `active_profile`, and fails
+closed when the profile is absent or malformed. Do not treat it as reusable authorization for
+scheduled mutations; mutation workflows still require their normal confirmation, dry-run, and
+readback controls.
+
 The optional `facebook_page_id` and `instagram_user_id` provide defaults when `ads create` omits the
 matching flags or YAML values. Explicit command/YAML values take precedence. Existing creative-ID
 flows do not use these defaults, and an explicit legacy `instagram_actor_id` prevents injection of

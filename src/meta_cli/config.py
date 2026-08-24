@@ -71,7 +71,13 @@ def load_settings(config_path: str | None = None) -> Settings:
 
     store = EnvironmentStore()
     config = store.load()
-    if config.active_profile is None:
+    process_environment = os.environ.get("META_CLI_ENVIRONMENT")
+    if process_environment is not None and (
+        not process_environment.strip() or process_environment != process_environment.strip()
+    ):
+        raise ConfigError("META_CLI_ENVIRONMENT must be a non-empty exact profile name")
+    selected_environment = process_environment or config.active_profile
+    if selected_environment is None:
         if config.profiles:
             guidance = "Run 'meta-cli environments use <name>' to select one."
         else:
@@ -81,13 +87,20 @@ def load_settings(config_path: str | None = None) -> Settings:
             )
         raise ConfigError(f"No active Meta Ads environment is selected. {guidance}")
 
-    profile = config.profiles.get(config.active_profile)
+    profile = config.profiles.get(selected_environment)
     if profile is None:
-        raise ConfigError(
-            f"Active Meta Ads environment '{config.active_profile}' no longer exists. "
-            "Run 'meta-cli environments list' and "
-            "'meta-cli environments use <name>' to select an available profile."
-        )
+        if process_environment is None:
+            message = (
+                f"Active Meta Ads environment '{selected_environment}' no longer exists. "
+                "Run 'meta-cli environments list' and "
+                "'meta-cli environments use <name>' to select an available profile."
+            )
+        else:
+            message = (
+                f"Meta Ads environment '{selected_environment}' does not exist. "
+                "Run 'meta-cli environments list' and select an available profile."
+            )
+        raise ConfigError(message)
 
     credentials = MetaCredentials.model_validate(
         {
@@ -98,4 +111,4 @@ def load_settings(config_path: str | None = None) -> Settings:
             "META_API_VERSION": profile.api_version,
         }
     )
-    return Settings(credentials=credentials, active_environment=config.active_profile)
+    return Settings(credentials=credentials, active_environment=selected_environment)
