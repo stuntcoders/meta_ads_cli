@@ -624,7 +624,8 @@ class MetaSDKClient:
                 return self._paginated_result(rows, paging)
             return rows
         except Exception as exc:  # noqa: BLE001
-            raise APIError(f"Failed to fetch ad insights: {exc}") from exc
+            message = self._redact_exception(exc)
+            raise APIError(f"Failed to fetch ad insights: {message}") from exc
 
     def get_video_status(self, video_id: str) -> Dict[str, Any]:
         self.initialize()
