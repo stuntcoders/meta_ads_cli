@@ -3,7 +3,7 @@ from __future__ import annotations
 from typer.testing import CliRunner
 
 from meta_cli.app import app
-from meta_cli.commands.insights import _insight_row, _parse_action_keys
+from meta_cli.commands.insights import _insight_row, _parse_action_keys, _parse_optional_keys
 
 runner = CliRunner()
 
@@ -42,6 +42,20 @@ def test_parse_action_keys_requires_values():
         _parse_action_keys("  ,  ")
     except ValueError as exc:
         assert "At least one action type" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
+def test_parse_optional_keys():
+    assert _parse_optional_keys(None) is None
+    assert _parse_optional_keys("country, hourly_stats") == ["country", "hourly_stats"]
+
+
+def test_parse_optional_keys_rejects_empty_value():
+    try:
+        _parse_optional_keys(" , ")
+    except ValueError as exc:
+        assert "At least one breakdown" in str(exc)
     else:
         raise AssertionError("Expected ValueError")
 
@@ -94,6 +108,10 @@ def test_insights_passes_pagination_options(monkeypatch):
             "--after",
             "cursor_2",
             "--no-paginate",
+            "--breakdowns",
+            "hourly_stats_aggregated_by_advertiser_time_zone",
+            "--time-increment",
+            "1",
             "--result-action-types",
             "lead,purchase",
             "--cost-action-types",
@@ -104,6 +122,10 @@ def test_insights_passes_pagination_options(monkeypatch):
     assert result.exit_code == 0
     assert fake.last_kwargs["after"] == "cursor_2"
     assert fake.last_kwargs["auto_paginate"] is False
+    assert fake.last_kwargs["breakdowns"] == [
+        "hourly_stats_aggregated_by_advertiser_time_zone"
+    ]
+    assert fake.last_kwargs["time_increment"] == 1
 
 
 def test_insights_output_file_json(monkeypatch, tmp_path):

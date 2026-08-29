@@ -94,6 +94,33 @@ def test_list_and_insights_results_include_preloaded_cursor_data(monkeypatch):
     assert insights["paging"]["total_count"] == 1
 
 
+def test_ad_insights_passes_breakdowns_and_time_increment(monkeypatch):
+    client = MetaSDKClient(_creds())
+    captured = {}
+
+    class Account:
+        def get_insights(self, fields, params):
+            captured.update(params)
+            return PreloadedCursor([])
+
+    monkeypatch.setattr(client, "initialize", lambda: None)
+    monkeypatch.setattr(client, "get_ad_account", lambda: Account())
+
+    client.get_ad_insights(
+        fields=["ad_id", "spend"],
+        since="2026-08-28",
+        until="2026-08-29",
+        breakdowns=["hourly_stats_aggregated_by_advertiser_time_zone"],
+        time_increment=1,
+    )
+
+    assert captured["time_range"] == {"since": "2026-08-28", "until": "2026-08-29"}
+    assert captured["breakdowns"] == [
+        "hourly_stats_aggregated_by_advertiser_time_zone"
+    ]
+    assert captured["time_increment"] == 1
+
+
 def test_collect_cursor_no_paginate_stops_after_first_page():
     client = MetaSDKClient(_creds())
     cursor = PreloadedCursor(

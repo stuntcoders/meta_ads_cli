@@ -581,6 +581,8 @@ class MetaSDKClient:
         date_preset: str | None = None,
         since: str | None = None,
         until: str | None = None,
+        breakdowns: List[str] | None = None,
+        time_increment: int | None = None,
         adset_id: str | None = None,
         limit: int = 200,
         after: str | None = None,
@@ -601,6 +603,10 @@ class MetaSDKClient:
             params["time_range"] = {"since": since, "until": until}
         elif since or until:
             raise APIError("Both --since and --until must be supplied together")
+        if breakdowns:
+            params["breakdowns"] = breakdowns
+        if time_increment is not None:
+            params["time_increment"] = time_increment
 
         try:
             if adset_id:

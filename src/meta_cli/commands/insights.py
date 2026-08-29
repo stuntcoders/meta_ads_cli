@@ -68,6 +68,18 @@ def ads_insights(
     ),
     since: Optional[str] = typer.Option(None, "--since", help="Start date YYYY-MM-DD"),
     until: Optional[str] = typer.Option(None, "--until", help="End date YYYY-MM-DD"),
+    breakdowns: Optional[str] = typer.Option(
+        None,
+        "--breakdowns",
+        help="Comma-separated Meta insights breakdowns, e.g. hourly_stats_aggregated_by_advertiser_time_zone",
+    ),
+    time_increment: Optional[int] = typer.Option(
+        None,
+        "--time-increment",
+        min=1,
+        max=90,
+        help="Split the date range into Meta time increments of 1-90 days",
+    ),
     result_action_types: str = typer.Option(
         ",".join(DEFAULT_RESULT_ACTION_TYPES),
         "--result-action-types",
@@ -102,6 +114,7 @@ def ads_insights(
 
         conversion_keys = _parse_action_keys(result_action_types)
         cost_keys = _parse_action_keys(cost_action_types)
+        breakdown_keys = _parse_optional_keys(breakdowns)
 
         include_paging = json_output or bool(output_file)
         client = build_client(auth_config)
@@ -110,6 +123,8 @@ def ads_insights(
             date_preset=date_preset,
             since=since,
             until=until,
+            breakdowns=breakdown_keys,
+            time_increment=time_increment,
             adset_id=adset_id,
             limit=limit,
             after=after,
@@ -182,6 +197,15 @@ def _parse_action_keys(raw: str) -> list[str]:
     keys = [item.strip() for item in raw.split(",") if item.strip()]
     if not keys:
         raise ValueError("At least one action type must be provided")
+    return keys
+
+
+def _parse_optional_keys(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    keys = [item.strip() for item in raw.split(",") if item.strip()]
+    if not keys:
+        raise ValueError("At least one breakdown must be provided when using --breakdowns")
     return keys
 
 
