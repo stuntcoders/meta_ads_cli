@@ -27,6 +27,8 @@ TARGETING_CATEGORY_CLASSES = {
     "net_worth",
     "office_type",
     "politics",
+    "user_device",
+    "user_os",
 }
 
 
