@@ -336,6 +336,7 @@ Human-readable output contains all fetched rows. JSON list output is an envelope
 
 ```bash
 meta-cli targeting search-interests --query "Tutoring" --json
+meta-cli targeting search-categories --class family_statuses --query "parent" --json
 meta-cli targeting search-locations --query "Gurugram" --country IN
 meta-cli targeting search-locations --query "Noida" --country IN --json
 ```
