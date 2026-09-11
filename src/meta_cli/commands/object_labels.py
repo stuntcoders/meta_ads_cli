@@ -22,8 +22,11 @@ def _read_target(client: MetaSDKClient, object_type: str, object_id: str, accoun
         raise ConfigError("Target lookup did not match the requested ID")
     if _normalize_account_id(target.get("account_id")) != account_id:
         raise ConfigError("Target does not belong to the configured account")
-    # Missing/null is not evidence of an empty set. Refuse partial/unknown shapes.
-    labels = target.get("adlabels")
+    # Only absence triggers authoritative, fully paginated edge resolution.
+    # Explicit null/partial fields remain unsafe. This also applies to readback
+    # and already-applied checks, after target identity and account validation.
+    labels = (target["adlabels"] if "adlabels" in target
+              else client.list_object_labels(object_type, object_id))
     if not isinstance(labels, list):
         raise APIError("Target adlabels must be an explicit list; missing/partial labels are unsafe")
     ids = []

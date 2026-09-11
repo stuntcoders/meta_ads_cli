@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 from meta_cli.app import app
 from meta_cli.commands.object_labels import OBJECT_LABEL_FIELDS
 from meta_cli.config import MetaCredentials
+from meta_cli.exceptions import APIError
 from meta_cli.sdk import MetaSDKClient
 
 runner = CliRunner()
@@ -158,12 +159,25 @@ def test_bad_target_fails_closed_even_dry_run(sdk, field, value):
     assert_zero_writes(sdk)
 
 
-def test_missing_target_and_missing_label_field_fail(sdk):
-    del sdk[4]["adlabels"]
-    assert invoke(sdk, "--yes").exit_code == 1
+def test_missing_target_fails_without_edge_lookup(sdk, monkeypatch):
+    edge = Mock(side_effect=AssertionError("Missing target must not resolve labels"))
+    monkeypatch.setattr(sdk[1], "list_object_labels", edge)
     sdk[3].api_get.side_effect = None
     sdk[3].api_get.return_value = {}
     assert invoke(sdk, "--yes").exit_code == 1
+    edge.assert_not_called()
+    assert_zero_writes(sdk)
+
+
+def test_missing_label_field_requires_successful_edge_lookup(sdk, monkeypatch):
+    del sdk[4]["adlabels"]
+    edge = Mock(side_effect=APIError("Incomplete target label edge"))
+    monkeypatch.setattr(sdk[1], "list_object_labels", edge)
+    result = invoke(sdk, "--yes")
+    assert result.exit_code == 1
+    assert "Incomplete target label edge" in output(result)["error"]
+    edge.assert_called_once_with(sdk[0], "100")
+    sdk[2].get_ad_labels.assert_not_called()
     assert_zero_writes(sdk)
 
 

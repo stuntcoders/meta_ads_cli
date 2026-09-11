@@ -25,7 +25,68 @@ class _IdentityResponseParser:
                 "success" in envelope and envelope["success"] is not True
             ):
                 raise APIError("Meta did not confirm the target lookup")
+        # The SDK drops null fields on export. Reject an explicit unsafe shape
+        # before parsing so null cannot become absence and trigger edge fallback.
+        if "adlabels" in data and not isinstance(data["adlabels"], list):
+            raise APIError("Target adlabels must be an explicit list; missing/partial labels are unsafe")
         return self.parser.parse_single(response)
+
+
+class _CompleteLabelEdgeParser:
+    """Validate raw label pages before the SDK's permissive ObjectParser.
+
+    A missing node field is not an empty set. Only a valid terminal edge page
+    establishes completeness, including when intermediate pages contain no rows.
+    """
+
+    def __init__(self, parser):
+        self.parser = parser
+        self.complete = False
+        self.pages = 0
+        self.seen_after: set[str] = set()
+        self.seen_ids: set[str] = set()
+
+    def parse_multiple(self, response):
+        if (not isinstance(response, dict) or not isinstance(response.get("data"), list)
+                or "error" in response
+                or ("success" in response and response["success"] is not True)):
+            raise APIError("Target label edge returned an invalid page")
+        paging = response.get("paging", {})
+        if not isinstance(paging, dict):
+            raise APIError("Target label edge returned invalid pagination")
+        cursors = paging.get("cursors", {})
+        if not isinstance(cursors, dict):
+            raise APIError("Target label edge returned invalid cursors")
+        for key in ("before", "after"):
+            if key in cursors and (not isinstance(cursors[key], str) or not cursors[key]):
+                raise APIError("Target label edge returned an invalid cursor")
+        has_next = "next" in paging
+        if has_next:
+            after = cursors.get("after")
+            if not isinstance(paging["next"], str) or not paging["next"] or not after:
+                raise APIError("Target label edge pagination is incomplete")
+            if after in self.seen_after:
+                raise APIError("Target label edge pagination did not progress")
+            self.seen_after.add(after)
+
+        ids = []
+        for row in response["data"]:
+            if (not isinstance(row, dict) or "error" in row
+                    or ("success" in row and row["success"] is not True)):
+                raise APIError("Target label edge contains an invalid label")
+            label_id = str(row.get("id", ""))
+            if not label_id.isascii() or not label_id.isdigit():
+                raise APIError("Target label edge contains an invalid label ID")
+            if label_id in self.seen_ids:
+                raise APIError("Target label edge contains duplicate IDs; retry the read")
+            self.seen_ids.add(label_id)
+            ids.append(label_id)
+        objects = self.parser.parse_multiple(response)
+        if not isinstance(objects, list) or [str(obj.get("id")) for obj in objects] != ids:
+            raise APIError("SDK did not preserve the target label edge page")
+        self.pages += 1
+        self.complete = not has_next
+        return objects
 
 
 class _CheckedMutationParser:
@@ -252,6 +313,47 @@ class MetaSDKClient:
         except Exception as exc:  # noqa: BLE001
             raise APIError(
                 f"Failed to fetch {object_type} {object_id}: {self._redact_exception(exc)}"
+            ) from exc
+
+    def list_object_labels(self, object_type: str, object_id: str) -> List[Dict[str, Any]]:
+        """Resolve the entire target /adlabels GET edge, or fail without a result.
+
+        Use only as fallback for an absent node field, after caller ownership
+        checks. Explicit null/partial node fields must still fail closed.
+        """
+        if object_type not in {"ad", "campaign"}:
+            raise APIError("Only ads and campaigns support additive labeling")
+        if not isinstance(object_id, str) or not object_id.isascii() or not object_id.isdigit():
+            raise APIError("Object ID must be numeric")
+        self.initialize()
+        try:
+            from facebook_business.adobjects.adlabel import AdLabel
+            from facebook_business.adobjects.objectparser import ObjectParser
+            from facebook_business.api import Cursor
+
+            target = self.get_ad(object_id) if object_type == "ad" else self.get_campaign(object_id)
+            parser = _CompleteLabelEdgeParser(ObjectParser(api=target.get_api(), target_class=AdLabel))
+            # Ads/campaigns have no generated get_ad_labels. Use the official
+            # Cursor with a scoped parser, not raw HTTP or a global SDK patch.
+            cursor = Cursor(
+                source_object=target, target_objects_class=AdLabel,
+                fields=["id", "name"], endpoint="adlabels", include_summary=False,
+                object_parser=parser,
+            )
+            rows = []
+            while not parser.complete:
+                pages_before = parser.pages
+                # False means an empty *page*, not necessarily the end. Do not
+                # use list(cursor) or _collect_cursor here: both can stop early.
+                cursor.load_next_page()
+                if parser.pages != pages_before + 1:
+                    raise APIError("Target label edge completion could not be established")
+                rows.extend(self.to_dict(cursor[i]) for i in range(len(cursor)))
+            return rows
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                f"Failed to resolve complete labels for {object_type} {object_id}: "
+                f"{self._redact_exception(exc)}"
             ) from exc
 
     def add_object_label(self, object_type: str, object_id: str, label_id: str) -> None:

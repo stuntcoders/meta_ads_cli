@@ -423,9 +423,22 @@ META_CLI_ENVIRONMENT=<environment_name> meta-cli campaigns get <campaign_id> --j
 These commands accept one numeric target ID and one existing account label ID; they never create
 labels implicitly. Preflight reads and validates the selected account, target identity/ownership,
 and current label IDs, then fully enumerates account labels to prove the requested label exists in
-that account (no page cap). A missing or malformed `adlabels` field is not treated as an empty set:
-only an explicit list is accepted. Unknown/partial label shapes, duplicate IDs, missing objects or
-labels, and account mismatches fail closed, including in dry runs.
+that account (no page cap). A missing node `adlabels` field is **not** proof of an empty set.
+Only when the field is absent, after validating target identity and account ownership, the CLI
+explicitly GETs that ad's or campaign's `/adlabels` edge through the official SDK. It validates and
+consumes **every page**, including empty intermediate pages, before accepting the complete label
+set. A successfully completed empty edge confirms an unlabelled object; omitted data, malformed
+pages/pagination, repeated cursors, duplicate IDs, or any page-fetch error do not. Unsafe initial
+resolution fails before any write, including in dry runs.
+
+An explicit node list (including `[]`) remains supported without a fallback request. Explicit null
+or partial/malformed node fields still fail closed; they are never reinterpreted as absence.
+The same rules apply to already-applied checks, repeated additions, and post-write readback. If
+readback omits the node field, its edge must also resolve completely and contain every prior label
+plus the requested label before `verified: true` can be returned. Unsafe readback reports possible
+write success but failed verification, without retry or rollback. General `ads get` / `campaigns get`
+output remains raw: omission there is still not proof of no labels. Missing objects or account
+labels and account mismatches continue to fail closed.
 
 `--dry-run` performs those reads but **zero API writes** and no prompt (`outcome: would_add`).
 An already-applied label is a successful `already_applied` no-op without a prompt or write.

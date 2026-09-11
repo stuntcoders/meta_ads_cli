@@ -100,6 +100,9 @@ def transport(tmp_path, monkeypatch):
         elif method == "GET" and node in {"100", "300"} and not edge:
             fields = params["fields"].split(",")
             body = {key: deepcopy(value) for key, value in state[node].items() if key in fields}
+        elif method == "GET" and node in {"100", "300"} and edge == "adlabels":
+            assert params["fields"] == "id,name" and set(params) <= {"fields", "after"}
+            body = {"data": deepcopy(state[node]["adlabels"])}
         elif method == "POST" and node == profile["ad_account_id"] and edge == "adlabels":
             assert params == {"name": "Winner"}
             state["labels"].append(deepcopy(WINNER))

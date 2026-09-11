@@ -100,7 +100,7 @@ def test_negative_or_malformed_write_stays_error_even_if_state_matches(label_cas
 @pytest.mark.parametrize("ack", [{"success": True}, {}])
 @pytest.mark.parametrize("problem", [
     "missing_requested", "missing_prior", "missing_id", "wrong_id", "missing_account",
-    "wrong_account", "missing_labels", "null_labels", "partial_labels", "invalid_label",
+    "wrong_account", "missing_labels_invalid_edge", "null_labels", "partial_labels", "invalid_label",
     "duplicate_labels", "empty", "false", "error", "transport_error",
 ])
 def test_inconclusive_readback_never_reports_success(label_case, intercept, ack, problem):
@@ -111,13 +111,16 @@ def test_inconclusive_readback_never_reports_success(label_case, intercept, ack,
             return deepcopy(ack)
         if node != case.node or not writes(case.calls):
             return body
-        if problem == "missing_requested":
+        if problem == "missing_labels_invalid_edge":
+            if edge == "adlabels":
+                return {}  # Absence alone is safe only if the fallback edge succeeds.
+            del body["adlabels"]
+        elif problem == "missing_requested":
             body["adlabels"] = [OTHER]
         elif problem == "missing_prior":
             body["adlabels"] = [WINNER]
         elif problem.startswith("missing_"):
-            del body[{"missing_id": "id", "missing_account": "account_id",
-                      "missing_labels": "adlabels"}[problem]]
+            del body[{"missing_id": "id", "missing_account": "account_id"}[problem]]
         elif problem == "wrong_id":
             body["id"] = "999"
         elif problem == "wrong_account":
@@ -146,7 +149,8 @@ def test_inconclusive_readback_never_reports_success(label_case, intercept, ack,
     assert data["ok"] is False
     assert "may have succeeded, but verification failed" in data["error"]
     assert "synthetic-first-" not in result.output
-    assert case.calls[-1][1:4] == ("GET", case.node, "")
+    expected_edge = "adlabels" if problem == "missing_labels_invalid_edge" else ""
+    assert case.calls[-1][1:4] == ("GET", case.node, expected_edge)
     assert_one_addition(case)
 
 
