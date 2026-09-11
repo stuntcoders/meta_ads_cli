@@ -6,6 +6,8 @@ from typing import Any, List, Optional
 import typer
 
 from meta_cli.cli_utils import build_client, handle_cli_error, require_confirmation
+from meta_cli.commands.ad_archiving import archive_ad
+from meta_cli.commands.object_labels import apply_object_label
 from meta_cli.environments import EnvironmentStore
 from meta_cli.exceptions import APIError, ConfigError
 from meta_cli.output import emit, print_table
@@ -25,7 +27,9 @@ AD_FIELDS = [
 
 AD_DETAIL_FIELDS = [
     "id",
+    "account_id",
     "name",
+    "adlabels",
     "status",
     "configured_status",
     "effective_status",
@@ -128,6 +132,41 @@ def get_ad(
         rows = [[key, ad.get(key)] for key in AD_DETAIL_FIELDS]
         print_table(f"Ad {ad_id}", ["Field", "Value"], rows, False)
     except (ConfigError, APIError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
+@app.command("add-label")
+def add_label(
+    ad_id: str,
+    label_id: str = typer.Option(..., "--label-id", help="Existing account label ID to add"),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Read/validate and preview; zero writes"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    """Add one existing label to this ad, preserving all unrelated labels."""
+    try:
+        result = apply_object_label(
+            build_client(auth_config), "ad", ad_id, label_id, dry_run=dry_run, yes=yes
+        )
+        emit(result, as_json=json_output)
+    except (ConfigError, APIError, ValueError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
+@app.command("archive")
+def archive_ad_command(
+    ad_id: str,
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Read/validate and preview; zero writes"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    """Archive one non-delivering ad; never delete it or change its parents."""
+    try:
+        result = archive_ad(build_client(auth_config), ad_id, dry_run=dry_run, yes=yes)
+        emit(result, as_json=json_output)
+    except (ConfigError, APIError, ValueError) as exc:
         handle_cli_error(exc, as_json=json_output)
 
 

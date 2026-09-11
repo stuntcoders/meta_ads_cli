@@ -9,6 +9,69 @@ from meta_cli.config import MetaCredentials
 from meta_cli.exceptions import APIError
 
 
+class _IdentityResponseParser:
+    """Do not mistake an SDK constructor ID for identity returned by Meta."""
+
+    def __init__(self, parser, expected_id: str):
+        self.parser = parser
+        self.expected_id = expected_id
+
+    def parse_single(self, response):
+        data = response.get("data", response) if isinstance(response, dict) else None
+        if not isinstance(data, dict) or str(data.get("id")) != self.expected_id:
+            raise APIError("Target lookup did not return the requested ID")
+        for envelope in (response, data):
+            if "error" in envelope or (
+                "success" in envelope and envelope["success"] is not True
+            ):
+                raise APIError("Meta did not confirm the target lookup")
+        return self.parser.parse_single(response)
+
+
+class _CheckedMutationParser:
+    """Check acknowledgements before ObjectParser discards the success flag."""
+
+    def __init__(self, parser, *, expected_id: str | None, allow_empty: bool):
+        self.parser = parser
+        self.expected_id = expected_id
+        self.allow_empty = allow_empty
+
+    def parse_single(self, response):
+        if not isinstance(response, dict):
+            raise APIError("Meta returned an invalid mutation response")
+        data = response.get("data", response)
+        if not isinstance(data, dict):
+            raise APIError("Meta returned an invalid mutation response")
+        for envelope in (response, data):
+            if "error" in envelope or (
+                "success" in envelope and envelope["success"] is not True
+            ):
+                raise APIError("Meta did not acknowledge the mutation")
+            if "id" in envelope:
+                returned_id = str(envelope["id"])
+                if (not returned_id.isascii() or not returned_id.isdigit()
+                        or (self.expected_id is not None and returned_id != self.expected_id)):
+                    raise APIError("Meta mutation response did not match the expected ID")
+        if not (data.get("success") is True or "id" in data
+                or (self.allow_empty and not data)):
+            raise APIError("Meta did not acknowledge the mutation")
+        # Keep the official parser, including its empty success-only result.
+        # This is NOT verification: callers must read back the affected object.
+        return self.parser.parse_single(response)
+
+
+def _execute_checked_mutation(request, *, expected_id=None, allow_empty=False):
+    # Generated methods expose pending=True but no public parser setter. Wrap
+    # only this request's parser; never patch SDK globals or replace transport.
+    parser = request._response_parser
+    if parser is None:
+        raise APIError("SDK mutation request has no response parser")
+    request._response_parser = _CheckedMutationParser(
+        parser, expected_id=expected_id, allow_empty=allow_empty,
+    )
+    return request.execute()
+
+
 @dataclass
 class MetaSDKClient:
     credentials: MetaCredentials
@@ -174,6 +237,48 @@ class MetaSDKClient:
         Ad = self._import_class("facebook_business.adobjects.ad", "Ad")
         return Ad(ad_id)
 
+    def get_object_label_details(
+        self, object_type: str, object_id: str, fields: List[str],
+    ) -> Dict[str, Any]:
+        """Read label state with transport-returned identity, not a reused SDK ID."""
+        if object_type not in {"ad", "campaign"}:
+            raise APIError("Only ads and campaigns support additive labeling")
+        self.initialize()
+        try:
+            target = self.get_ad(object_id) if object_type == "ad" else self.get_campaign(object_id)
+            request = target.api_get(fields=fields, pending=True)
+            request._response_parser = _IdentityResponseParser(request._response_parser, object_id)
+            return self.to_dict(request.execute())
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                f"Failed to fetch {object_type} {object_id}: {self._redact_exception(exc)}"
+            ) from exc
+
+    def add_object_label(self, object_type: str, object_id: str, label_id: str) -> None:
+        """POST only the new ID to the additive edge, never replace node adlabels.
+
+        Caller owns account/label preflight, confirmation and mandatory readback.
+        """
+        if object_type not in {"ad", "campaign"}:
+            raise APIError("Only ads and campaigns support additive labeling")
+        if any(not isinstance(value, str) or not value.isascii() or not value.isdigit()
+               for value in (object_id, label_id)):
+            raise APIError("Object and label IDs must be numeric")
+        self.initialize()
+        try:
+            target = self.get_ad(object_id) if object_type == "ad" else self.get_campaign(object_id)
+            request = target.create_ad_label(
+                params={"adlabels": [{"id": label_id}]}, pending=True,
+            )
+            _execute_checked_mutation(request, expected_id=object_id, allow_empty=True)
+            # The SDK strips success-only acknowledgements to {}. Returning
+            # here permits mandatory caller readback, not a success claim.
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                f"Additive label write for {object_type} {object_id} is unconfirmed. "
+                "Fetch the object before retrying: " + self._redact_exception(exc)
+            ) from exc
+
     def get_creative(self, creative_id: str):
         AdCreative = self._import_class(
             "facebook_business.adobjects.adcreative", "AdCreative"
@@ -198,22 +303,22 @@ class MetaSDKClient:
 
     def get_account_details(self, fields: List[str]) -> Dict[str, Any]:
         self.initialize()
-        account = self.get_ad_account()
         try:
-            result = account.api_get(fields=fields)
+            account = self.get_ad_account()
+            return self.to_dict(account.api_get(fields=fields))
         except Exception as exc:  # noqa: BLE001
-            raise APIError(f"Failed to fetch ad account metadata: {exc}") from exc
-        return self.to_dict(result)
+            raise APIError(
+                f"Failed to fetch ad account metadata: {self._redact_exception(exc)}"
+            ) from exc
 
     def get_campaign_details(self, campaign_id: str, fields: List[str]) -> Dict[str, Any]:
         self.initialize()
         campaign = self.get_campaign(campaign_id)
         try:
-            result = campaign.api_get(fields=fields)
+            return self.to_dict(campaign.api_get(fields=fields))
         except Exception as exc:  # noqa: BLE001
             message = self._redact_exception(exc)
             raise APIError(f"Failed to fetch campaign {campaign_id}: {message}") from exc
-        return self.to_dict(result)
 
     def get_adset_details(self, adset_id: str, fields: List[str]) -> Dict[str, Any]:
         self.initialize()
@@ -226,12 +331,13 @@ class MetaSDKClient:
 
     def get_ad_details(self, ad_id: str, fields: List[str]) -> Dict[str, Any]:
         self.initialize()
-        ad = self.get_ad(ad_id)
         try:
-            result = ad.api_get(fields=fields)
+            ad = self.get_ad(ad_id)
+            return self.to_dict(ad.api_get(fields=fields))
         except Exception as exc:  # noqa: BLE001
-            raise APIError(f"Failed to fetch ad {ad_id}: {exc}") from exc
-        return self.to_dict(result)
+            raise APIError(
+                f"Failed to fetch ad {ad_id}: {self._redact_exception(exc)}"
+            ) from exc
 
     def get_creative_details(self, creative_id: str, fields: List[str]) -> Dict[str, Any]:
         self.initialize()
@@ -321,6 +427,58 @@ class MetaSDKClient:
             "name": data.get("name"),
             "account_status": data.get("account_status"),
         }
+
+    def list_ad_labels(
+        self,
+        fields: List[str],
+        limit: int = 50,
+        after: str | None = None,
+        before: str | None = None,
+        auto_paginate: bool = True,
+        max_pages: int | None = None,
+        include_paging: bool = False,
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
+        params = self._with_pagination_params({"limit": limit}, after, before)
+        if not 1 <= limit <= 500:
+            raise APIError("limit must be between 1 and 500")
+        if max_pages is not None and max_pages < 1:
+            raise APIError("max_pages must be >= 1")
+        self.initialize()
+        try:
+            account = self.get_ad_account()
+            cursor = account.get_ad_labels(fields=fields, params=params)
+            rows, paging = self._collect_cursor(
+                cursor, auto_paginate=auto_paginate, max_pages=max_pages
+            )
+            if include_paging:
+                return self._paginated_result(rows, paging)
+            return rows
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                f"Failed to list account labels: {self._redact_exception(exc)}"
+            ) from exc
+
+    def create_ad_label(self, name: str) -> Dict[str, Any]:
+        if not isinstance(name, str) or not name.strip():
+            raise APIError("Label name must not be blank")
+        self.initialize()
+        try:
+            account = self.get_ad_account()
+            request = account.create_ad_label(params={"name": name}, pending=True)
+            result = self.to_dict(_execute_checked_mutation(request))
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                "Label creation failed; the write outcome may be unknown. "
+                "List account labels before retrying: "
+                f"{self._redact_exception(exc)}"
+            ) from exc
+        label_id = str(result.get("id") or "")
+        if result.get("success") is False or not label_id.isascii() or not label_id.isdigit():
+            raise APIError(
+                "Meta did not return a valid created label ID. "
+                "The write outcome is unconfirmed; list account labels before retrying."
+            )
+        return {"id": label_id}
 
     def list_campaigns(
         self,
@@ -850,12 +1008,16 @@ class MetaSDKClient:
 
     def update_ad_status(self, ad_id: str, status: str) -> Dict[str, Any]:
         self.initialize()
-        ad = self.get_ad(ad_id)
         try:
-            result = ad.api_update(params={"status": status})
+            ad = self.get_ad(ad_id)
+            if status == "ARCHIVED":
+                request = ad.api_update(params={"status": status}, pending=True)
+                return self.to_dict(_execute_checked_mutation(request, expected_id=ad_id))
+            return self.to_dict(ad.api_update(params={"status": status}))
         except Exception as exc:  # noqa: BLE001
-            raise APIError(f"Failed to update ad {ad_id}: {exc}") from exc
-        return self.to_dict(result)
+            raise APIError(
+                f"Failed to update ad {ad_id}: {self._redact_exception(exc)}"
+            ) from exc
 
     def update_ad_creative(self, ad_id: str, creative_id: str) -> Dict[str, Any]:
         self.initialize()

@@ -5,6 +5,7 @@ from typing import List, Optional
 import typer
 
 from meta_cli.cli_utils import build_client, handle_cli_error, require_confirmation
+from meta_cli.commands.object_labels import apply_object_label
 from meta_cli.exceptions import APIError, ConfigError
 from meta_cli.output import emit, print_table
 from meta_cli.schemas import CampaignCreateConfig, load_yaml_model
@@ -41,7 +42,9 @@ CAMPAIGN_BUDGET_FIELDS = [
 
 CAMPAIGN_DETAIL_FIELDS = [
     "id",
+    "account_id",
     "name",
+    "adlabels",
     "status",
     "configured_status",
     "effective_status",
@@ -118,6 +121,25 @@ def get_campaign(
         rows = [[key, campaign.get(key)] for key in CAMPAIGN_DETAIL_FIELDS]
         print_table(f"Campaign {campaign_id}", ["Field", "Value"], rows, False)
     except (ConfigError, APIError) as exc:
+        handle_cli_error(exc, as_json=json_output)
+
+
+@app.command("add-label")
+def add_label(
+    campaign_id: str,
+    label_id: str = typer.Option(..., "--label-id", help="Existing account label ID to add"),
+    auth_config: Optional[str] = typer.Option(None, "--auth-config", help="Path to auth YAML"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Read/validate and preview; zero writes"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON"),
+) -> None:
+    """Add one existing label to this campaign only (not its child ads)."""
+    try:
+        result = apply_object_label(
+            build_client(auth_config), "campaign", campaign_id, label_id, dry_run=dry_run, yes=yes
+        )
+        emit(result, as_json=json_output)
+    except (ConfigError, APIError, ValueError) as exc:
         handle_cli_error(exc, as_json=json_output)
 
 

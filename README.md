@@ -11,6 +11,8 @@ Production-grade Python CLI for managing Meta ads with the **official Meta Pytho
 - Upload image/video assets
 - Create campaigns, ad sets, and ads from YAML or flags
 - Pause/resume campaigns, ad sets, ads
+- List/create account labels and add an existing label to one ad or campaign without replacing other labels
+- Archive one non-delivering ad with read-only preflight and verified readback (not deletion)
 - Search Meta targeting locations and replace ad set targeting from JSON or YAML
 - Update an ad to use a different creative
 
@@ -248,33 +250,6 @@ See the detailed setup and migration guide:
 
 - [`docs/meta-setup-and-configuration.md`](docs/meta-setup-and-configuration.md)
 
-Credentials can be supplied with the existing environment variables / single auth YAML flow, or through a multi-profile environments file for command-center workspaces.
-
-Environment stores use this shape:
-
-```yaml
-active_profile: brand-a
-profiles:
-  brand-a:
-    display_name: Brand A
-    access_token: "..."
-    app_id: "..."
-    app_secret: "..."
-    ad_account_id: "act_111111111111111"
-    api_version: "v25.0"
-```
-
-Set `META_CLI_ENVIRONMENTS_FILE=/path/to/.meta-ads-environments.yml` and then use:
-
-```bash
-meta-cli environments list      # lists profiles without printing secrets
-meta-cli environments current   # shows the selected profile without secrets
-meta-cli environments use brand-a
-meta-cli auth test
-```
-
-When `META_CLI_ENVIRONMENTS_FILE` is set, normal commands load credentials from the selected `active_profile`. Explicit command config files and process environment variables still override those values.
-
 ---
 
 ## Quick command examples
@@ -319,6 +294,24 @@ information, review feedback, and failed delivery checks. `adsets get` also incl
 include the event source, rule, category, availability, and first/last fired timestamps when Meta
 supplies them.
 
+For read-only label and delivery verification, `ads get` and `campaigns get` request
+`account_id`, `id`, `name`, `status`, `configured_status`, `effective_status`, and `adlabels`.
+Ad details also include `adset_id` and `campaign_id`; campaign details include `daily_budget`,
+`lifetime_budget`, and `budget_remaining` (raw minor currency units, when applicable).
+Existing creative and diagnostic fields remain available. JSON is the returned object, without
+an envelope: omitted optional fields stay omitted and an empty `adlabels` list stays empty.
+The SDK may omit null-valued fields during export; any nulls retained in its returned dictionary
+remain null in JSON. A missing label field is not proof that there are no labels.
+Human-readable output leaves unavailable values blank.
+
+```bash
+meta-cli environments list --json
+meta-cli environments current --json  # persistent selection, not the process override
+# Use an exact configured environment name; this override does not change active_profile.
+META_CLI_ENVIRONMENT=<environment_name> meta-cli ads get <ad_id> --json
+META_CLI_ENVIRONMENT=<environment_name> meta-cli campaigns get <campaign_id> --json
+```
+
 List commands follow every Meta API page by default, so `--limit` controls rows per request rather
 than the total rows returned. Use `--max-pages <n>` to cap requests or `--no-paginate` to fetch one
 page. To resume from a cursor, pass either `--after <cursor>` or `--before <cursor>` (not both):
@@ -331,6 +324,261 @@ meta-cli ads list --all --no-paginate --after <cursor> --json
 Human-readable output contains all fetched rows. JSON list output is an envelope with `data` and a
 `paging` object containing the requested cursors, `next_after`, `has_more`, `pages_fetched`, and
 `total_count` when Meta supplies it. This makes a deliberately capped request resumable.
+
+### Labels/archive command reference
+
+| Command syntax | Required input | Additional options |
+| --- | --- | --- |
+| `meta-cli labels list` | None | `--limit`, `--after`, `--before`, `--paginate` / `--no-paginate`, `--max-pages` |
+| `meta-cli labels create --name "Winner"` | `--name TEXT` | `--dry-run`, `--yes` / `-y` |
+| `meta-cli ads add-label <ad_id> --label-id <label_id>` | One ad ID and `--label-id TEXT` | `--dry-run`, `--yes` / `-y` |
+| `meta-cli campaigns add-label <campaign_id> --label-id <label_id>` | One campaign ID and `--label-id TEXT` | `--dry-run`, `--yes` / `-y` |
+| `meta-cli ads archive <ad_id>` | One ad ID | `--dry-run`, `--yes` / `-y` |
+| `meta-cli ads get <ad_id>` | One ad ID | None |
+| `meta-cli campaigns get <campaign_id>` | One campaign ID | None |
+
+All seven commands also accept `--json`, `--help`, and `--auth-config PATH` (the deliberate
+[legacy auth override](#legacy-auth-files-and-migration), not an object configuration file).
+Named environments are recommended; command-center workspaces should use their repository wrapper
+`./bin/meta-cli` instead of the global executable and should not use legacy auth overrides.
+There is no `--environment` flag: `META_CLI_ENVIRONMENT` takes an exact configured profile name.
+Replace angle-bracket placeholders before running examples; they are not literal shell arguments.
+
+For `labels list`, `--limit INTEGER` defaults to **50**, accepts **1–500**, and is a page size,
+not a total-result limit. `--paginate` is enabled by default; `--no-paginate` fetches one page.
+`--max-pages INTEGER` must be at least **1** and defaults to no cap. `--after TEXT` and
+`--before TEXT` default to unset and are mutually exclusive. Creation/application safety reads
+always scan the complete account label inventory; those mutation commands have no pagination flags.
+
+`--dry-run`, `--yes`/`-y`, and `--json` default to false. Dry runs for these mutations require
+credentials and make read-only Meta requests; **they are not offline validation** and never send
+SDK `validate_only` writes. No-op/dry-run paths do not prompt; actual writes require confirmation
+unless `--yes`/`-y` is passed. `--json` alone does not suppress confirmation. Use `--yes --json`
+only after authorizing the exact write. Declining confirmation or sending EOF exits nonzero.
+
+Before account work, inspect `environments list` and `environments current`; select a profile only
+when explicitly intended. Re-check persistent selection immediately before each live mutation.
+When using a process override, verify that exact profile in the list: `environments current` still
+reports the persisted selection. Mutation results identify the actual `environment` and normalized
+`account_id`; plain `ads get`/`campaigns get` return object data without environment metadata and do
+not perform the mutation commands' ownership/preflight checks.
+
+### Account labels
+
+Account adlabels are reusable IDs for organizing ads/campaigns, not creative asset-feed placement
+labels. These commands operate only in the configured account; they do not apply labels to objects.
+
+```bash
+# Read-only list; supports the standard pagination flags described above.
+META_CLI_ENVIRONMENT=<environment_name> meta-cli labels list --json
+META_CLI_ENVIRONMENT=<environment_name> meta-cli labels list --no-paginate --limit 50 --json
+
+# Preview performs account and complete label-inventory reads, but zero API writes.
+META_CLI_ENVIRONMENT=<environment_name> meta-cli labels create --name "Winner" --dry-run --json
+# Omit --yes for an interactive confirmation showing the environment/account/name.
+META_CLI_ENVIRONMENT=<environment_name> meta-cli labels create --name "Winner" --yes --json
+```
+
+`labels list` outputs label `id` and `name`; JSON retains the `data`/`paging` envelope and adds
+`environment` and normalized `account_id`. Both commands read the account identity and refuse a
+mismatch. They honor the existing process-only `META_CLI_ENVIRONMENT` override without modifying
+persistent selection. Authorized account read access is required even for creation dry runs;
+actual creation requires management permission (normally `ads_management`) and account access.
+Meta account eligibility/API restrictions still apply; these flows are tested offline, not with
+live permission probes.
+
+Creation trims surrounding name whitespace and rejects blank names. It scans **all** account label
+pages for an exact, case-sensitive match: one match returns its ID as `outcome: already_exists`
+with `changed: false`; multiple matches fail without choosing an ID or writing. Use `labels list`
+to inspect ambiguous IDs, then use an explicit ID for label application or choose a unique name.
+No-op and dry-run paths do not prompt. A new-name dry run returns `outcome: would_create` and the
+name-only `mutation`, with no fabricated ID. Only confirmed real creation POSTs `{"name": "..."}`
+to the account's official SDK `/adlabels` edge; no status, budget, or delivery changes are made.
+Creation requires a valid returned new label ID; a success-only acknowledgement without that ID
+is insufficient. An accepted creation response is followed by a complete account-label readback to
+verify the returned ID and name. JSON creation results include `environment`, `account_id`,
+`dry_run`, `changed`, `outcome`, `mutation`, and the `label` when it exists (`verified: true` for a
+readback-verified creation).
+With `--yes --json`, output is machine-readable without a confirmation prompt.
+
+Meta does not guarantee atomic name uniqueness: concurrent creators can race between preflight and
+write. The CLI never retries writes automatically. An API failure, missing created ID, or failed
+readback exits nonzero and may leave a created label in Meta; list labels before retrying. Known
+credential values are redacted from SDK errors. Reusing or creating an account label alone does not
+label any ad/campaign or activate delivery.
+
+### Add an existing label to an ad or campaign
+
+```bash
+META_CLI_ENVIRONMENT=<environment_name> meta-cli ads add-label <ad_id> --label-id <label_id> --dry-run --json
+META_CLI_ENVIRONMENT=<environment_name> meta-cli campaigns add-label <campaign_id> --label-id <label_id> --dry-run --json
+# After reviewing the preview, authorize the same explicit target (omit --yes to confirm interactively):
+META_CLI_ENVIRONMENT=<environment_name> meta-cli ads add-label <ad_id> --label-id <label_id> --yes --json
+META_CLI_ENVIRONMENT=<environment_name> meta-cli campaigns add-label <campaign_id> --label-id <label_id> --yes --json
+# Independent read-only verification:
+META_CLI_ENVIRONMENT=<environment_name> meta-cli ads get <ad_id> --json
+META_CLI_ENVIRONMENT=<environment_name> meta-cli campaigns get <campaign_id> --json
+```
+
+These commands accept one numeric target ID and one existing account label ID; they never create
+labels implicitly. Preflight reads and validates the selected account, target identity/ownership,
+and current label IDs, then fully enumerates account labels to prove the requested label exists in
+that account (no page cap). A missing or malformed `adlabels` field is not treated as an empty set:
+only an explicit list is accepted. Unknown/partial label shapes, duplicate IDs, missing objects or
+labels, and account mismatches fail closed, including in dry runs.
+
+`--dry-run` performs those reads but **zero API writes** and no prompt (`outcome: would_add`).
+An already-applied label is a successful `already_applied` no-op without a prompt or write.
+Otherwise confirmation shows environment, account, target, and label; `--yes`/`-y` bypasses it.
+The official SDK `Ad.create_ad_label` / `Campaign.create_ad_label` POSTs only
+`{"adlabels": [{"id": "<label_id>"}]}` to the selected object's **additive `/adlabels` edge**.
+It does not replace the node's complete label field. Unrelated labels are retained server-side;
+no status, budget, targeting, parent, or child objects are changed. Campaign labeling does not
+label child ads. Account read access is required even for dry runs; actual labeling also requires
+management permission and Meta account/API eligibility. This behavior is verified offline with
+mocks and SDK request schemas, not live account permission probes.
+
+The CLI checks raw mutation acknowledgements before the SDK can discard its `success` flag
+(also for account-label creation and archiving). Explicit `success: false`, non-boolean success
+values, Graph errors, malformed responses, and invalid/mismatched returned IDs fail closed, even
+if the write may already have taken effect. A success-only `{"success": true}` acknowledgement
+becomes an empty SDK object; additive labeling proceeds to mandatory readback rather than rejecting
+that response. A raw empty dictionary is also allowed through **only for additive labeling**;
+unknown nonempty responses without an accepted success flag or ID are rejected. Neither an empty
+response nor an acknowledgement alone is verified success: the target identity/account/label
+readback must verify that both the new label and every prior label remain. Label preflight and
+readback require the identity actually returned by Meta, not an ID supplied by an SDK constructor.
+Output includes `environment`, `account_id`, `object_id`,
+`label`, `before_label_ids`, exact additive `mutation`, `dry_run`, `changed`, and `outcome`;
+readback-verified writes also include `verified: true` and `after_label_ids` (`outcome: added`).
+The additive endpoint avoids replacement lost-update races, but preflight and readback are not an
+atomic transaction: another operator may concurrently add/remove labels or delete objects.
+Concurrent additions are accepted; missing prior labels at readback fail verification. No-op state
+is also only a point-in-time observation. Negative/malformed acknowledgements, mismatched response
+IDs, API errors, or failed readback exit nonzero and may mean the label was applied: fetch the object
+before retrying.
+The CLI never retries or rolls back writes automatically and redacts known credentials from SDK
+errors. Named-environment process routing does not change persistent selection.
+
+### Archive one non-delivering ad (not delete)
+
+```bash
+META_CLI_ENVIRONMENT=<environment_name> meta-cli ads archive <ad_id> --dry-run --json
+# After reviewing the preview; omit --yes to confirm interactively:
+META_CLI_ENVIRONMENT=<environment_name> meta-cli ads archive <ad_id> --yes --json
+META_CLI_ENVIRONMENT=<environment_name> meta-cli ads get <ad_id> --json
+```
+
+`ads archive` accepts one explicit numeric ad ID, not a campaign, ad set, selector, or bulk list.
+It reads the configured account and selected ad, validating identity, account ownership, parent
+IDs, `status`, `configured_status`, and `effective_status`. Both configured status fields must
+agree. Supported configured states are `PAUSED` and `ACTIVE`, with one of these explicitly
+non-delivering effective states: `PAUSED`, `ADSET_PAUSED`, `CAMPAIGN_PAUSED`, `DISAPPROVED`,
+`PENDING_REVIEW`, `PENDING_BILLING_INFO`, `IN_PROCESS`, or `PREAPPROVED`. In particular, an ad
+configured `ACTIVE` under a paused campaign or ad set can be archived **without activating it or
+its parents**. Effectively `ACTIVE`, `WITH_ISSUES` (not proof of non-delivery), deleted, unknown,
+missing, or inconsistent states fail closed. No activation/pause workaround is attempted.
+Meta still decides which transitions the account/API permits; offline SDK support is not a live
+eligibility guarantee. Account read access is needed even for dry runs; writes require authorized
+management access (normally `ads_management`).
+
+When all three status fields are already `ARCHIVED`, the command returns a successful
+`outcome: already_archived` no-op, without a prompt or write. `--dry-run` performs read-only
+preflight and returns `would_archive`, with zero API writes and no prompt. Otherwise confirmation
+identifies the environment, account, ad, and current configured/effective states; `--yes`/`-y`
+bypasses the prompt. The sole write is the official SDK `Ad.api_update` on the selected ad with
+exactly `{"status": "ARCHIVED"}`. It never calls a delete endpoint, activates delivery, changes
+labels/creative/budget/targeting, traverses children, or updates campaigns or ad sets. Archiving
+is a status change, **not permanent deletion**; this command offers no unarchive operation.
+
+Archive accepts a success-only acknowledgement or a matching returned ad ID, but rejects a raw
+empty response and explicit negative/invalid acknowledgements before SDK parsing can hide them.
+After an acknowledged write, the CLI fetches the ad again and requires the same identity,
+account and parent IDs, with all status fields `ARCHIVED`. Verified success returns
+`outcome: archived`, `changed: true`, and `verified: true`. Output includes `environment`,
+`account_id`, `ad_id`, before/after status and parent snapshots, `dry_run`, and the exact `mutation`.
+Dry-run/no-op results have `changed: false` and no fabricated after snapshot. Named-environment
+process routing is reused without changing persistent selection.
+
+Preflight and readback are point-in-time reads, not an atomic lock against other operators or
+Meta's transient state changes. Failed writes, unknown acknowledgements, and failed readbacks
+exit nonzero with guidance to fetch the ad before retrying: the archive may already have
+succeeded. Eventual consistency can delay readback confirmation. The CLI never retries, rolls
+back, or updates a parent to force a transition, and known credentials are redacted from SDK
+errors. All development verification uses mocks/offline SDK schemas, not live mutations.
+
+### Labels/archive outcomes and offline release checks
+
+Successful mutation results have `ok: true` and the following `operation`/`outcome` values:
+
+| `operation` | Read-only dry-run outcome | No-op outcome (including with `--dry-run`) | Verified write outcome |
+| --- | --- | --- | --- |
+| `account_label_create` | `would_create` | `already_exists` | `created` |
+| `ad_add_label` / `campaign_add_label` | `would_add` | `already_applied` | `added` |
+| `ad_archive` | `would_archive` | `already_archived` | `archived` |
+
+Only verified writes return `changed: true` and `verified: true`. Dry runs and no-ops return
+`changed: false` and omit `verified`; their `mutation` describes the intended payload, not a
+write that occurred. JSON domain/API errors return `ok: false` and `error`, with exit status 1;
+argument/parser errors and cancelled prompts may instead use normal CLI text. A post-write error
+is not proof that Meta made no change. Inspect with `labels list`, `ads get`, or `campaigns get`
+before deciding whether to retry; the CLI has no automatic retry or rollback.
+
+No label rename/removal/deletion, bulk labeling, ad-set labeling, campaign archiving, or unarchive
+command is provided by this interface. It does not automatically save reports: redirect `--json`
+output to a chosen artifact path when needed. Verification is limited to the fields described
+above, not a fresh inventory of all account objects or proof of live permissions.
+
+The following **installed CLI help checks are credential-free**: no profile selection, account
+reads, or Meta mutations are needed. Required IDs/options may be omitted with `--help`.
+
+```bash
+meta-cli --help
+meta-cli labels --help
+meta-cli labels list --help
+meta-cli labels create --help
+meta-cli ads add-label --help
+meta-cli campaigns add-label --help
+meta-cli ads archive --help
+meta-cli ads get --help
+meta-cli campaigns get --help
+```
+
+For a command-center installation, run the same checks through its actual wrapper from the
+command-center root (do not override `META_CLI_BIN` to a development checkout):
+
+```bash
+./bin/meta-cli --help
+./bin/meta-cli labels --help
+./bin/meta-cli labels list --help
+./bin/meta-cli labels create --help
+./bin/meta-cli ads add-label --help
+./bin/meta-cli campaigns add-label --help
+./bin/meta-cli ads archive --help
+./bin/meta-cli ads get --help
+./bin/meta-cli campaigns get --help
+```
+
+A wrapper may require that its private store file exists, but help does not load credentials or
+call Meta. Do not substitute `auth test`, real getters, or mutation dry runs for offline release
+checks. Help confirms registration/options, not installed commit provenance or live API eligibility;
+record the deployed commit/source separately. After installing development dependencies, verify
+examples and safety behavior offline from the CLI source checkout:
+
+```bash
+env -u META_ACCESS_TOKEN -u META_APP_ID -u META_APP_SECRET \
+  -u META_AD_ACCOUNT_ID -u META_CLI_ENVIRONMENT \
+  LIVE_META_TESTS=0 META_CLI_ENVIRONMENTS_FILE="$(mktemp -d)/environments.yaml" \
+  .venv/bin/python -m pytest \
+  tests/test_labels_cli.py tests/test_object_labels_cli.py tests/test_ad_archive_cli.py \
+  tests/test_verification_getters.py tests/test_labels_archive_workflow.py \
+  tests/test_sdk_label_acknowledgements.py
+```
+
+These fixtures use synthetic profiles and mocked SDK calls; the README workflow and acknowledgement
+regressions retain the official SDK request/parser path with network transport blocked. Re-run them
+when upgrading the SDK: acknowledgement checks wrap each pending request's private response parser,
+not SDK globals, and must remain compatible with its parsing behavior.
 
 ### Targeting discovery
 
@@ -570,7 +818,11 @@ Use returned media IDs in ad config:
 - Use `--dry-run` before real create/update/delete operations
 - Pause/resume, ad-set attribution replacement, custom-conversion creation, and campaign deletion require confirmation unless `--yes` is passed
 - Campaign deletion refuses non-paused campaigns and cannot be undone
-- Validate auth (`meta-cli auth test`) before operations
+- Account-label creation, additive labeling, and single-ad archiving confirm actual writes unless `--yes` is passed; their dry runs make read-only API requests, not offline checks
+- Additive labeling retains unrelated labels; archiving refuses delivering/unknown states and updates only the selected ad's status, not its parents
+- Label/archive writes report success only after readback; a failure after writing may still mean Meta changed, so inspect before retrying
+- Check the intended environment before account work and immediately before a live mutation
+- Validate auth (`meta-cli auth test`) before live operations; use only `--help` and mocked tests for credential-free release verification
 
 ---
 

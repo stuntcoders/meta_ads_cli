@@ -11,6 +11,7 @@ from meta_cli.commands.custom_audiences import app as custom_audiences_app
 from meta_cli.commands.custom_conversions import app as custom_conversions_app
 from meta_cli.commands.environments import app as environments_app
 from meta_cli.commands.insights import app as insights_app
+from meta_cli.commands.labels import app as labels_app
 from meta_cli.commands.media import app as media_app
 from meta_cli.commands.report import app as report_app
 from meta_cli.commands.targeting import app as targeting_app
@@ -26,6 +27,7 @@ app.add_typer(creatives_app, name="creatives")
 app.add_typer(custom_conversions_app, name="custom-conversions")
 app.add_typer(custom_audiences_app, name="custom-audiences")
 app.add_typer(insights_app, name="insights")
+app.add_typer(labels_app, name="labels")
 app.add_typer(media_app, name="media")
 app.add_typer(report_app, name="report")
 app.add_typer(targeting_app, name="targeting")
