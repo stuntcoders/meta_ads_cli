@@ -425,9 +425,11 @@ labels implicitly. Preflight reads and validates the selected account, target id
 and current label IDs, then fully enumerates account labels to prove the requested label exists in
 that account (no page cap). A missing node `adlabels` field is **not** proof of an empty set.
 Only when the field is absent, after validating target identity and account ownership, the CLI
-explicitly GETs that ad's or campaign's `/adlabels` edge through the official SDK. It validates and
-consumes **every page**, including empty intermediate pages, before accepting the complete label
-set. A successfully completed empty edge confirms an unlabelled object; omitted data, malformed
+attempts that ad's or campaign's `/adlabels` edge through the official SDK. On Meta v25's
+specific `(#100) Tried accessing nonexisting field (adlabels)` response, it instead enumerates
+all account labels and each label's documented `/ads` or `/campaigns` reverse-membership edge.
+Other errors do not trigger this fallback. It validates and consumes **every page**, including
+empty intermediate pages, before accepting the complete label set. A successfully completed empty edge confirms an unlabelled object; omitted data, malformed
 pages/pagination, repeated cursors, duplicate IDs, or any page-fetch error do not. Unsafe initial
 resolution fails before any write, including in dry runs.
 

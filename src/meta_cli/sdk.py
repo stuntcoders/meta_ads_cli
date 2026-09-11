@@ -351,9 +351,60 @@ class MetaSDKClient:
                 rows.extend(self.to_dict(cursor[i]) for i in range(len(cursor)))
             return rows
         except Exception as exc:  # noqa: BLE001
+            from facebook_business.exceptions import FacebookRequestError
+
+            if (isinstance(exc, FacebookRequestError) and exc.api_error_code() == 100
+                    and "Tried accessing nonexisting field (adlabels)" in exc.api_error_message()):
+                # v25 accepts the node field but exposes no readable forward
+                # edge on these objects. Resolve membership through account
+                # labels and their documented ads/campaigns reverse edges.
+                return self._list_object_labels_reverse(object_type, object_id)
             raise APIError(
                 f"Failed to resolve complete labels for {object_type} {object_id}: "
                 f"{self._redact_exception(exc)}"
+            ) from exc
+
+    def _list_object_labels_reverse(self, object_type: str, object_id: str):
+        """Read complete account label membership; never infer empty from absence."""
+        try:
+            from facebook_business.adobjects.ad import Ad
+            from facebook_business.adobjects.adlabel import AdLabel
+            from facebook_business.adobjects.campaign import Campaign
+            from facebook_business.adobjects.objectparser import ObjectParser
+            from facebook_business.api import Cursor
+
+            def complete_edge(source, target_class, endpoint, fields):
+                parser = _CompleteLabelEdgeParser(
+                    ObjectParser(api=source.get_api(), target_class=target_class),
+                )
+                cursor = Cursor(
+                    source_object=source, target_objects_class=target_class,
+                    fields=fields, endpoint=endpoint, include_summary=False,
+                    object_parser=parser,
+                )
+                rows = []
+                while not parser.complete:
+                    before = parser.pages
+                    cursor.load_next_page()
+                    if parser.pages != before + 1:
+                        raise APIError("Reverse label edge completion could not be established")
+                    rows.extend(self.to_dict(cursor[i]) for i in range(len(cursor)))
+                return rows
+
+            account = self.get_ad_account()
+            labels = complete_edge(account, AdLabel, "adlabels", ["id", "name"])
+            result = []
+            target_class = Ad if object_type == "ad" else Campaign
+            endpoint = "ads" if object_type == "ad" else "campaigns"
+            for label in labels:
+                source = AdLabel(label["id"], api=account.get_api())
+                members = complete_edge(source, target_class, endpoint, ["id"])
+                if any(str(member["id"]) == object_id for member in members):
+                    result.append(label)
+            return result
+        except Exception as exc:  # noqa: BLE001
+            raise APIError(
+                "Failed to resolve reverse label membership: " + self._redact_exception(exc)
             ) from exc
 
     def add_object_label(self, object_type: str, object_id: str, label_id: str) -> None:
